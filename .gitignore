@@ -1,0 +1,16 @@
+node_modules/
+npm-debug.log*
+
+# 시크릿 — 절대 커밋 금지
+.env
+.env.*
+!.env.example
+toss_key.txt
+
+# 데이터/빌드 산출물
+data/
+*.db
+*.db-*
+caddy_data/
+caddy_config/
+.DS_Store

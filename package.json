@@ -1,0 +1,14 @@
+{
+  "name": "alba-app",
+  "version": "2.0.0",
+  "private": true,
+  "description": "알바 성향 테스트 — 나에게 맞는 알바 유형 추천 + 가이드 (정적 웹앱)",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

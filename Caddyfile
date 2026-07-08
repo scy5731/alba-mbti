@@ -1,0 +1,6 @@
+# 알바 MBTI — Caddy 리버스 프록시(자동 HTTPS)
+# {$DOMAIN} 은 docker-compose 의 caddy 서비스에 전달된 환경변수에서 채워짐.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy alba:3000
+}

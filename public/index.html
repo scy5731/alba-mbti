@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>알바 MBTI — 나의 알바 성향 유형은?</title>
+<meta name="description" content="12문항으로 알아보는 나의 알바 성향 유형과 나에게 맞는 알바 추천 · 가이드" />
+<!-- PWA -->
+<link rel="manifest" href="/manifest.webmanifest" />
+<meta name="theme-color" content="#4f46e5" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="알바 MBTI" />
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+  html, body, #root { height: 100%; }
+  body { background:#eef1f6; -webkit-tap-highlight-color: transparent;
+         font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; letter-spacing: -0.01em; }
+  .phone { width: 100%; max-width: 430px; margin: 0 auto; background:#fff; min-height:100%;
+           box-shadow: 0 10px 40px rgba(0,0,0,.08); position: relative; }
+  .noscroll::-webkit-scrollbar{ display:none; }
+  @keyframes rise { 0%{transform:translateY(10px);opacity:0} 100%{transform:translateY(0);opacity:1} }
+  .rise { animation: rise .35s ease-out both; }
+  @keyframes pop { 0%{transform:scale(.9);opacity:0} 100%{transform:scale(1);opacity:1} }
+  .pop { animation: pop .3s cubic-bezier(.2,.8,.2,1.2) both; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useMemo, useEffect } = React;
+
+/* ============================================================
+   알바 유형 (15종) — 성향 축 속성으로 매칭
+   pay 시급수준 · physical 체력강도 · social 응대량 · learn 배움폭 (각 1~5)
+   flex 단기/유연 여부
+   ============================================================ */
+const TYPES = [
+  { id:"cafe", emoji:"☕", name:"카페 알바", tag:"실내 · 응대형", pay:3, physical:2, social:4, learn:3, flex:false,
+    oneLine:"음료 만들고 손님 응대하는 인기 No.1 입문 알바",
+    about:"카페 알바는 음료 제조와 손님 응대가 반반씩 섞인 대표적인 입문 알바예요. 포스기 계산부터 에스프레소 머신·디저트 준비, 매장 청결 유지까지 손이 쉴 틈은 없지만 그만큼 다양한 일을 두루 배워요. 브랜드 카페는 매뉴얼이 잘 갖춰져 처음이라도 익히기 쉽고, 개인 카페는 자유도가 높은 대신 멀티태스킹이 많은 편이에요.",
+    doing:["주문·계산(포스기)","음료·디저트 제조","매장 정리·마감 청소"],
+    goodFor:"사람 응대가 어렵지 않고 손이 야무진 편이라면 잘 맞아요.",
+    hard:["피크 타임엔 주문이 밀려 정신없이 바빠요.","서서 일하는 시간이 길어 다리가 붓기 쉬워요."],
+    tips:["메뉴·사이즈 용어를 미리 외워가면 첫날이 편해요.","모르면 바로 질문 — 아는 척이 더 큰 실수를 불러요."] },
+  { id:"cvs", emoji:"🏪", name:"편의점 알바", tag:"실내 · 야간 가능 · 조용", pay:2, physical:2, social:2, learn:3, flex:false,
+    oneLine:"혼자서도 할 수 있어 조용한 걸 좋아하는 사람에게 딱",
+    about:"편의점은 대부분 혼자 매장을 보는 1인 근무라 내 페이스대로 조용히 일할 수 있어요. 계산과 진열이 기본이지만 택배·간편식 조리·공과금 수납까지 은근히 업무 종류가 많아 익숙해지는 데 며칠 걸려요. 야간은 시급이 더 높은 대신 손님이 적어 혼자 있는 시간이 길어요.",
+    doing:["계산·성인 인증","진열·유통기한 체크","택배·간단 조리"],
+    goodFor:"혼자 차분히 일하는 걸 좋아하고 야간도 괜찮다면 좋아요.",
+    hard:["담배·주류 종류가 많아 처음엔 위치·번호 외우기가 벅차요.","야간엔 취객 응대나 안전 문제가 생길 수 있어요."],
+    tips:["담배는 번호로 외우면 빨라요.","신분증 확인은 무조건(미확인 시 점주 과태료)."] },
+  { id:"hall", emoji:"🍽️", name:"홀서빙", tag:"실내 · 활동량 많음", pay:3, physical:4, social:4, learn:3, flex:false,
+    oneLine:"몸은 바쁘지만 시간은 빨리 가는 활동형 알바",
+    about:"홀서빙은 주문을 받아 음식을 나르고 테이블을 정리하는, 몸을 계속 쓰는 활동형 알바예요. 앉아 있을 틈이 없어 시간은 빨리 가지만 그만큼 체력 소모가 커요. 손님과 짧게 자주 부딪히기 때문에 밝은 응대와 빠른 눈치가 중요하고, 동선이 익숙해지면 한결 수월해져요.",
+    doing:["주문받고 음식 나르기","테이블 세팅·정리","손님 안내"],
+    goodFor:"가만히 있는 것보다 몸을 움직이는 게 편한 사람에게 맞아요.",
+    hard:["식사 피크 시간대엔 뛰어다닐 만큼 바빠요.","무거운 그릇·쟁반을 자주 들어 손목·다리에 무리가 가요."],
+    tips:["동선을 외우면 훨씬 덜 힘들어요.","'네, 잠시만요!' 한마디가 컴플레인을 막아줘요."] },
+  { id:"kitchen", emoji:"🍳", name:"주방 보조", tag:"실내 · 응대 적음", pay:3, physical:4, social:1, learn:4, flex:false,
+    oneLine:"손님 응대는 적고, 손이 빨라지는 재미가 있는 알바",
+    about:"주방 보조는 손님 응대가 거의 없이 재료 손질·조리 보조·설거지를 맡는, 손으로 하는 일 중심의 알바예요. 사람 상대가 부담스러운 사람에게 편하고, 하다 보면 칼질과 조리 순서가 몸에 붙어 속도가 빨라지는 재미가 있어요. 주방은 팀워크가 중요해 손발이 맞으면 훨씬 수월해져요.",
+    doing:["재료 손질·세팅","조리 보조·플레이팅","설거지·정리"],
+    goodFor:"응대는 부담스럽지만 손으로 하는 일이 좋다면 잘 맞아요.",
+    hard:["칼·불·기름을 다뤄 베이거나 데일 위험이 있어요.","좁고 더운 주방에서 오래 서 있어야 해요."],
+    tips:["칼·불·기름 화상 조심.","조리 순서를 몸에 익히면 속도가 확 빨라져요."] },
+  { id:"logi", emoji:"📦", name:"물류 상하차", tag:"고강도 · 단기 일당", pay:5, physical:5, social:1, learn:2, flex:true,
+    oneLine:"하루 바짝 뛰고 목돈 버는 단기 고수익 알바",
+    about:"물류 상하차는 하루 단위로 바짝 일하고 목돈을 버는 대표적인 고수익 단기 알바예요. 컨베이어에서 물품을 분류하거나 상자를 싣고 내리는 강도 높은 육체노동이라, 체력 소모가 큰 대신 시급·일당이 가장 높은 축에 속해요. 짧고 굵게 돈이 필요할 때 유용하지만 몸 관리가 관건이에요.",
+    doing:["컨베이어 물품 분류","상자 상·하차","라벨 스캔·적재"],
+    goodFor:"체력에 자신 있고 짧고 굵게 목돈이 필요할 때 좋아요.",
+    hard:["체력 소모가 매우 커서 다음 날까지 근육통이 남기도 해요.","냉동·야간 라인 등 근무 환경이 힘든 곳도 있어요."],
+    tips:["무조건 무릎으로 들기(허리 X).","초반 오버페이스 금지 — 페이스 조절이 핵심."] },
+  { id:"delivery", emoji:"🛵", name:"배달 라이더", tag:"실외 · 자유 근무", pay:4, physical:3, social:1, learn:2, flex:true,
+    oneLine:"원하는 시간에 앱 켜고 하는 가장 자유로운 알바",
+    about:"배달 라이더는 앱을 켜고 원하는 시간에만 일하는, 가장 자유로운 형태의 알바예요. 정해진 출퇴근 없이 콜을 받아 픽업하고 배달하는 만큼 시간 활용이 자유롭고, 바쁜 시간대엔 건당 수입도 쏠쏠해요. 대신 안전이 수입보다 늘 우선이라는 점을 기억해야 해요.",
+    doing:["배달 콜 수락","픽업·안전 운행·전달","앱 정산 확인"],
+    goodFor:"정해진 스케줄이 싫고 내 시간에 벌고 싶은 사람에게 맞아요.",
+    hard:["날씨·교통 사고 위험에 그대로 노출돼요.","오토바이·보험 등 초기 비용과 자기 관리가 필요해요."],
+    tips:["무리한 콜 욕심이 사고를 부릅니다. 신호·헬멧 필수.","점심·저녁·우천 시간대가 건당 효율이 좋아요."] },
+  { id:"study", emoji:"📚", name:"스터디카페 관리", tag:"실내 · 저강도 · 조용", pay:2, physical:1, social:1, learn:1, flex:false,
+    oneLine:"가장 조용하고 몸이 편한, 공부하며 할 수 있는 알바",
+    about:"스터디카페 관리는 알바 중 가장 몸이 편하고 조용한 축에 드는 일이에요. 좌석 안내와 간단한 청소·비품 보충이 주 업무라 손님과 부딪힐 일이 적고, 한가한 시간엔 내 공부나 독서를 병행하기도 좋아요. 시급은 높지 않지만 체력·감정 소모가 적은 게 큰 장점이에요.",
+    doing:["좌석·이용 안내","간단 청소·비품 채우기","결제 응대(가끔)"],
+    goodFor:"조용한 환경에서 여유 있게, 자기 시간도 챙기고 싶다면 최고.",
+    hard:["할 일이 적어 오히려 지루하게 느껴질 수 있어요.","시급이 낮은 편이라 큰 벌이를 기대하긴 어려워요."],
+    tips:["한가한 시간엔 공부·독서 병행 가능.","야간·주말 시간대가 자리 구하기 쉬워요."] },
+  { id:"event", emoji:"🎪", name:"행사 도우미", tag:"단기 · 응대형", pay:4, physical:3, social:4, learn:2, flex:true,
+    oneLine:"주말 하루 이틀, 짧게 하고 일당 챙기는 단기 알바",
+    about:"행사 도우미는 주말이나 특정 기간에 짧게 일하고 일당을 받는 단기 응대형 알바예요. 행사장 안내·샘플 배부·부스 세팅 등이 주 업무라 밝은 표정과 친절함이 중요하고, 인상이 좋으면 다음 행사에 다시 불려가는 경우가 많아요. 유연하게 단기로 벌고 싶은 사람에게 잘 맞아요.",
+    doing:["행사장 안내·응대","샘플·전단 배부","부스 세팅·정리"],
+    goodFor:"밝게 응대할 수 있고 단기로 유연하게 벌고 싶다면 맞아요.",
+    hard:["하루 종일 서 있거나 야외라 날씨 영향을 받아요.","일정이 불규칙해 꾸준한 수입으로 삼긴 어려워요."],
+    tips:["복장·용모 규정을 미리 확인하세요.","친절한 인상이 곧 재고용으로 이어져요."] },
+  { id:"bakery", emoji:"🥐", name:"베이커리 판매", tag:"실내 · 새벽 오픈조", pay:2, physical:3, social:3, learn:3, flex:false,
+    oneLine:"빵 향 속에서 판매·포장하는 힐링형 알바",
+    about:"베이커리 판매는 빵을 진열·포장·판매하는 깔끔한 실내 알바예요. 오픈조는 새벽에 시작하는 대신 오후 시간이 자유로워 하루를 길게 쓸 수 있고, 위생과 정리정돈을 중시하는 사람에게 잘 맞아요. 갓 구운 빵 냄새 속에서 일하는 힐링 요소도 있어요.",
+    doing:["빵 진열·판매·포장","계산·간단 조리(샌드위치)","위생·유통기한 관리"],
+    goodFor:"이른 출근이 괜찮고 깔끔하게 다루는 걸 좋아하면 잘 맞아요.",
+    hard:["오픈조는 새벽 출근이라 아침잠이 많으면 힘들어요.","진열·재고 관리로 은근히 서서 움직일 일이 많아요."],
+    tips:["오픈조는 새벽 시작이지만 오후가 자유로워요.","트레이·집게 위생을 신경 쓰세요."] },
+  { id:"mart", emoji:"🛒", name:"마트·매장 판매", tag:"실내 · 파트 다양", pay:2, physical:3, social:3, learn:2, flex:false,
+    oneLine:"진열·계산·안내 등 파트가 다양한 대형 매장 알바",
+    about:"마트·매장 판매는 진열·계산·고객 안내 등 파트가 세분화된 대형 매장 알바예요. 맡은 파트가 명확해 헤맬 일이 적고, 규모가 큰 만큼 함께 일하는 동료도 많아 팀으로 움직이는 걸 좋아하면 편해요. 시식·행사 보조 등 배치되는 파트에 따라 분위기가 꽤 달라요.",
+    doing:["상품 진열·정리","계산·고객 안내","시식·행사 보조"],
+    goodFor:"규모 있는 곳에서 파트 나눠 일하는 게 편하면 좋아요.",
+    hard:["진열은 물량이 많아 무거운 상자를 옮길 일이 잦아요.","주말·세일 기간엔 손님이 몰려 매우 바빠요."],
+    tips:["진열은 물량이 많아 체력이 필요해요.","파트별로 배치가 명확해 헤맬 일이 적어요."] },
+  { id:"pcbang", emoji:"🎮", name:"PC방 알바", tag:"실내 · 야간 가능", pay:2, physical:2, social:2, learn:1, flex:false,
+    oneLine:"자리 안내·간단 조리·청소가 주인 마이페이스 알바",
+    about:"PC방 알바는 자리 안내와 요금 관리, 간단한 조리·청소가 주 업무인 마이페이스형 알바예요. 손님 응대가 많지 않아 조용한 편이고 한가한 시간엔 여유가 있어요. 다만 은근히 라면·간식 주문이 있어 간단한 조리는 익혀둬야 하고, 마감 청소는 신경 쓸 일이 있어요.",
+    doing:["자리 배정·요금 관리","라면 등 간단 조리","좌석 청소·정리"],
+    goodFor:"북적임이 적은 조용한 환경을 좋아하면 잘 맞아요.",
+    hard:["흡연·음식 냄새 등 매장 환경이 쾌적하지 않을 수 있어요.","야간엔 시급이 오르지만 청소·정리 강도가 커져요."],
+    tips:["조리(라면·간식) 주문이 은근 있어요.","야간은 시급이 높지만 청소 강도가 올라가요."] },
+  { id:"tutor", emoji:"✏️", name:"과외·학원 보조", tag:"실내 · 지식 활용", pay:4, physical:1, social:3, learn:4, flex:false,
+    oneLine:"공부한 걸 살려 채점·질문 응대하는 고시급 알바",
+    about:"과외·학원 보조는 자신이 공부한 지식을 살려 채점·질문 응대·수업 보조를 하는 고시급 알바예요. 앉아서 하는 일이라 체력 부담이 적고, 특정 과목에 강점이 있으면 시급이 높아 인기가 많아요. 아이·학부모를 대하는 태도가 재계약에 큰 영향을 줘요.",
+    doing:["채점·오답 관리","질문 응대·수업 보조","교재·자료 정리"],
+    goodFor:"특정 과목에 자신 있고 앉아서 하는 일이 편하면 좋아요.",
+    hard:["시급이 높은 만큼 경쟁이 치열해 자리 구하기가 어려워요.","학생·학부모 응대에서 오는 심리적 부담이 있어요."],
+    tips:["시급이 높은 편이라 인기가 많아요.","아이·학부모 응대 매너가 재계약을 좌우해요."] },
+  { id:"cs", emoji:"🎧", name:"콜센터·재택 CS", tag:"실내·재택 · 정적", pay:3, physical:1, social:3, learn:3, flex:false,
+    oneLine:"앉아서 전화·채팅으로 응대하는 저체력 알바",
+    about:"콜센터·재택 CS는 전화나 채팅으로 문의를 응대하는, 앉아서 하는 저체력 알바예요. 몸 쓰는 일이 싫은 사람에게 편하고 재택으로 가능한 경우도 있지만, 응대 자체가 곧 감정노동이라 멘탈 관리가 핵심이에요. 매뉴얼을 잘 익힐수록 응대가 훨씬 수월해져요.",
+    doing:["전화·채팅 문의 응대","안내·접수 처리","응대 내역 기록"],
+    goodFor:"몸 쓰는 건 싫지만 말·타이핑로 하는 응대는 괜찮다면 맞아요.",
+    hard:["항의·불만 응대가 많아 감정 소모가 커요.","같은 자세로 오래 앉아 있어 어깨·목이 결려요."],
+    tips:["감정노동이 있어 멘탈 관리가 중요해요.","매뉴얼을 숙지하면 응대가 훨씬 수월해요."] },
+  { id:"beauty", emoji:"💄", name:"뷰티·화장품 매장", tag:"실내 · 응대형", pay:2, physical:2, social:4, learn:3, flex:false,
+    oneLine:"화장품 추천·판매하며 뷰티 지식이 쌓이는 알바",
+    about:"뷰티·화장품 매장은 제품을 추천·판매하며 자연스럽게 뷰티 지식이 쌓이는 응대형 알바예요. 화장품에 관심이 많고 사람과 대화하는 걸 즐기면 즐겁게 일할 수 있고, 일하는 동안 성분·브랜드 지식이 늘어 관심 분야라면 배움도 커요. 세일 시즌엔 분위기가 확 바빠져요.",
+    doing:["판매·제품 추천·응대","계산·진열","재고·행사 관리"],
+    goodFor:"뷰티에 관심 많고 사람 응대가 즐거우면 잘 맞아요.",
+    hard:["판매 목표·실적 압박이 있는 곳도 있어요.","세일·행사 기간엔 정신없이 바쁘고 서 있는 시간이 길어요."],
+    tips:["일하면서 성분·브랜드 지식이 자연히 쌓여요.","세일 시즌엔 정신없이 바빠요."] },
+  { id:"gym", emoji:"🏋️", name:"헬스장·수영장 데스크", tag:"실내 · 저강도 응대", pay:2, physical:1, social:3, learn:2, flex:false,
+    oneLine:"회원 안내·정리 위주의 쾌적한 데스크 알바",
+    about:"헬스장·수영장 데스크는 회원 안내와 비품 정리 위주의 쾌적한 응대 알바예요. 육체 강도가 낮고 운동 환경을 좋아하는 사람에게 잘 맞으며, 시설 이용 혜택을 주는 곳도 있어요. 응대는 가볍지만 회원 등록·관리 업무는 꼼꼼함이 필요해요.",
+    doing:["회원 안내·등록 응대","수건·비품 정리","시설 간단 관리"],
+    goodFor:"운동 환경을 좋아하고 가벼운 응대가 편하면 좋아요.",
+    hard:["회원이 몰리는 아침·저녁 시간대엔 문의가 밀려요.","수건·기구 정리 등 잔손이 가는 일이 은근히 많아요."],
+    tips:["회원 운동시간(아침·저녁)에 붐벼요.","시설 이용 혜택을 주는 곳도 있어요."] },
+];
+
+/* 기본 가이드 (알바 공통 상식) */
+const BASICS = [
+  { id:"contract", emoji:"📝", title:"근로계약서, 꼭 받으세요", sub:"하루 알바라도 계약서는 법적 권리예요.",
+    points:["시급·근무시간·업무를 문서로 남겨야 분쟁이 없어요.","미작성은 사장님 과태료 대상 — 정중히 요청하세요.","사본을 사진으로 보관하세요."] },
+  { id:"wage", emoji:"💰", title:"최저시급 알아두기", sub:"2026년 기준 시급 10,320원 이상이어야 해요.",
+    points:["이보다 낮으면 위법이에요.","야간(밤 10시~오전 6시)은 1.5배 가산.","수습이라도 함부로 최저시급 아래로 줄 수 없어요."] },
+  { id:"weekly", emoji:"🎁", title:"주휴수당이 뭐예요?", sub:"주 15시간 이상 일하면 하루치 임금을 더 받아요.",
+    points:["1주 15시간 이상 + 개근 시 발생.","시급제도 조건을 채우면 받을 권리가 있어요.","안 주면 임금체불 — 고용노동부 진정 가능."] },
+  { id:"firstday", emoji:"✨", title:"첫 출근, 이것만 기억해요", sub:"10분 일찍 + 모르면 바로 질문 = 반은 성공.",
+    points:["첫날은 배우는 날 — 실수해도 괜찮아요.","메모장에 업무 순서를 적어두세요.","밝은 인사와 성실함이 첫인상의 전부예요."] },
+  { id:"interview", emoji:"🎯", title:"알바 면접, 5분이면 끝", sub:"스펙보다 '성실·오래 일할 신호'가 중요해요.",
+    points:["가능한 요일·시간을 명확히 말하세요.","단정한 복장 + 웃으며 또렷한 인사.","'꼼꼼해요','오래 다니고 싶어요' 신호를 주세요."] },
+  { id:"safety", emoji:"🛡️", title:"이럴 땐 조심하세요", sub:"'돈 먼저 내라','신분증 맡겨라' 하면 사기예요.",
+    points:["교육비·유니폼비 선입금 요구는 의심.","신분증 원본을 맡기라는 곳은 피하세요.","급여 이체 내역을 꼭 남기세요."] },
+];
+
+/* ============================================================
+   알바 MBTI — 4축 × 12문항
+   축0 E(응대·사람) / I(독립·혼자)
+   축1 D(활동·몸)   / C(차분·정적)
+   축2 F(유연·단기) / S(고정·꾸준)
+   축3 P(돈·효율)   / G(성장·배움)
+   ============================================================ */
+const AXES = [["E","I"], ["D","C"], ["F","S"], ["P","G"]];
+const AXIS_LABEL = { E:"응대형", I:"독립형", D:"활동형", C:"차분형", F:"유연형", S:"꾸준형", P:"실속형", G:"성장형" };
+// 축 극성별 상세 해설 — 리포트 "성향 자세히 보기"에서 내 극성 기준으로 노출
+const AXIS_INFO = {
+  E: { key:"사람과의 접점에서 힘이 나요", desc:"손님·동료와 부딪히는 상황에서 오히려 에너지를 얻어요. 응대가 많은 자리일수록 지루하지 않고, 매장 분위기를 살리는 역할도 자연스럽게 해내요." },
+  I: { key:"내 페이스로 조용히 할 때 집중돼요", desc:"북적임보다 혼자만의 리듬으로 일할 때 능률이 올라요. 과한 감정노동은 금세 지치니, 응대 강도가 낮고 조용한 자리가 편해요." },
+  D: { key:"몸을 움직여야 시간이 잘 가요", desc:"가만히 대기하는 것보다 계속 움직이는 근무에서 활력이 나요. 체력을 쓰는 일도 오히려 개운하게 느끼고, 정적인 대기는 답답해해요." },
+  C: { key:"한자리에서 집중하는 게 좋아요", desc:"정신없이 뛰는 것보다 앉거나 한자리에서 차분히 처리하는 일이 잘 맞아요. 무리한 육체노동은 피하고, 꼼꼼함이 필요한 일에서 강점을 보여요." },
+  F: { key:"그때그때 유연한 스케줄이 좋아요", desc:"고정된 요일보다 상황에 맞춰 유연하게 일하는 걸 선호해요. 단기·하루 알바로 여러 경험을 빠르게 쌓는 것도 잘 맞아요." },
+  S: { key:"정한 스케줄을 꾸준히 지켜요", desc:"한 곳을 정해 오래 다니며 신뢰를 쌓는 데서 안정감을 느껴요. 자주 바뀌는 환경보다 예측 가능한 루틴에서 실력이 붙어요." },
+  P: { key:"시급과 효율이 최우선이에요", desc:"같은 시간이면 확실한 벌이가 중요해요. 시급·동선·효율을 꼼꼼히 따져 실속 있게 일하는 걸 선호해요." },
+  G: { key:"배움과 경험이 남는 일을 골라요", desc:"당장의 시급보다 뭘 배우고 남기는지를 더 봐요. 경험·커리어에 도움이 되는 일이면 조금 힘들어도 기꺼이 도전해요." },
+};
+// 축 극성별 선호 근무 환경 태그
+const ENV_TAG = {
+  E:"👥 손님·동료 응대가 있는 곳", I:"🎧 혼자 집중할 수 있는 곳",
+  D:"🏃 몸을 움직이는 활동적인 곳", C:"🪑 앉거나 한자리서 차분한 곳",
+  F:"📅 유연·단기 스케줄", S:"📌 고정·장기 스케줄",
+  P:"💰 시급·효율이 좋은 곳", G:"🌱 배울 게 있는 곳",
+};
+const QUIZ = [
+  // Round 1
+  { ax:0, q:"새 알바 첫날의 나는?", a:["E","먼저 말 걸며 분위기 파악"], b:["I","조용히 일부터 익힘"] },
+  { ax:1, q:"일할 때 나는?", a:["D","계속 움직여야 안 지쳐"], b:["C","한자리서 차분히가 편해"] },
+  { ax:2, q:"선호하는 스케줄은?", a:["F","그때그때 원하는 날만"], b:["S","고정 요일·시간이 편해"] },
+  { ax:3, q:"알바 고르는 1순위 기준은?", a:["P","시급·효율이 최고"], b:["G","배우는 게 있는지"] },
+  // Round 2
+  { ax:0, q:"손님이 말을 걸어오면?", a:["E","대화하는 게 즐겁다"], b:["I","살짝 부담스럽다"] },
+  { ax:1, q:"긴 근무라면?", a:["D","몸 쓰는 게 시간 잘 감"], b:["C","앉아서 집중하는 게 좋아"] },
+  { ax:2, q:"근무 기간은?", a:["F","단기·하루 알바도 좋아"], b:["S","한 곳을 오래 다니고파"] },
+  { ax:3, q:"둘 중 하나라면?", a:["P","편하고 시급 높은 일"], b:["G","힘들어도 배울 게 많은 일"] },
+  // Round 3
+  { ax:0, q:"쉬는 시간엔?", a:["E","동료들과 수다"], b:["I","혼자 조용히 충전"] },
+  { ax:1, q:"체력에 대한 나는?", a:["D","자신 있음, 땀 흘려도 OK"], b:["C","무리한 육체노동은 사양"] },
+  { ax:2, q:"갑자기 약속이 생기면?", a:["F","유연하게 빼고 싶다"], b:["S","정한 스케줄은 지킨다"] },
+  { ax:3, q:"내게 알바란?", a:["P","당장 필요한 돈벌이"], b:["G","경험·커리어의 밑거름"] },
+  // Round 4
+  { ax:0, q:"동료들과의 회식·모임은?", a:["E","즐겁게 자주 낀다"], b:["I","피곤해서 빠지고 싶다"] },
+  { ax:1, q:"이상적인 근무 자세는?", a:["D","서서 돌아다니는 쪽"], b:["C","앉거나 한자리에 있는 쪽"] },
+  { ax:2, q:"시험기간이 되면?", a:["F","알바를 확 줄이거나 뺀다"], b:["S","정한 스케줄은 그대로 유지"] },
+  { ax:3, q:"월급이 들어오면?", a:["P","시급×시간 계산이 제일 뿌듯"], b:["G","뭘 배웠나 돌아보는 게 더 뿌듯"] },
+  // Round 5
+  { ax:0, q:"손님 클레임 상황에선?", a:["E","대화로 풀어보려 한다"], b:["I","매뉴얼대로 최소한만 응대"] },
+  { ax:1, q:"언제 지루함을 느껴?", a:["D","몸이 안 움직이고 대기할 때"], b:["C","정신없이 바쁘게 뛸 때"] },
+  { ax:2, q:"새 알바를 구할 때?", a:["F","짧게 여러 개 굴린다"], b:["S","하나 정해 오래 다닌다"] },
+  { ax:3, q:"이력서에 알바를 적을 때?", a:["P","그냥 돈 벌려고 한 일"], b:["G","경험·역량으로 어필한다"] },
+  // Round 6
+  { ax:0, q:"혼자 매장을 보는 시간대는?", a:["E","심심해서 손님이 왔으면"], b:["I","편하고 오히려 좋다"] },
+  { ax:1, q:"평소 몸 쓰는 활동은?", a:["D","운동·활동을 좋아하는 편"], b:["C","가만히 있는 게 더 좋은 편"] },
+  { ax:2, q:"방학 때 알바 계획은?", a:["F","단기로 몰아서 바짝"], b:["S","학기처럼 꾸준히"] },
+  { ax:3, q:"시급 낮지만 경험되는 알바 추천받으면?", a:["P","시급부터 따진다"], b:["G","경험이면 해본다"] },
+  // Round 7
+  { ax:0, q:"처음 보는 동료와 짝이 되면?", a:["E","금방 말 트고 친해진다"], b:["I","어색해서 일 얘기만 한다"] },
+  { ax:1, q:"택배 상자 나르기 vs 데이터 입력?", a:["D","상자 나르기"], b:["C","앉아서 데이터 입력"] },
+  { ax:2, q:"이번 주만 근무 요일 바꿔달라면?", a:["F","상황 봐서 유연하게 맞춘다"], b:["S","정해진 스케줄대로가 편하다"] },
+  { ax:3, q:"알바 그만둘 때 가장 아쉬운 건?", a:["P","수입이 끊기는 것"], b:["G","더 못 배우는 것"] },
+];
+
+const PERSONAS = {
+  EDFP:{ emoji:"⚡", nick:"에너지 스프린터", tag:"바쁘게 뛰며 그때그때 버는 활동파", desc:"활발하고 유연하게 움직이며 확실한 벌이를 챙기는, 에너지 넘치는 타입이에요. 몸을 쓰고 사람과 부딪히는 바쁜 현장일수록 오히려 신이 나고 시간도 훌쩍 지나가요. 한 곳에 얽매이기보다 그때그때 조건 좋은 일을 골라 실속 있게 뛰는 걸 좋아해서, 스피드와 순발력이 필요한 자리에서 진가를 발휘해요.", strengths:["빠른 상황 대처","높은 활동 에너지"], caution:"단조롭고 정적인 근무는 금세 지루해요." },
+  EDFG:{ emoji:"🔥", nick:"만능 도전러", tag:"활동적으로 새 경험을 모으는 타입", desc:"활발하고 유연한 데다 새로운 걸 배우는 즐거움까지 아는 도전형이에요. 낯선 환경에 던져질수록 빠르게 적응하며 빛나고, 다양한 알바를 두루 경험하는 것 자체를 성장의 기회로 여겨요. 사람들과 어울리며 몸으로 부딪혀 배우는 걸 좋아해, 변화가 많고 활동적인 일에서 가장 생기 있게 일해요.", strengths:["뛰어난 적응력","무엇이든 시도"], caution:"한 곳에 오래 정착하기가 어려울 수 있어요." },
+  EDSP:{ emoji:"🏅", nick:"현장 에이스", tag:"활발하고 꾸준한 실전형", desc:"활동적이면서도 성실하게, 확실한 페이를 챙기는 현장의 에이스예요. 한번 정한 곳은 꾸준히 개근하며 몸으로 부딪히는 일을 척척 해내, 어느새 매장에서 없으면 안 되는 존재가 돼요. 사람 응대와 활동량이 많은 자리에서 자연스레 리더십을 발휘하고, 노력한 만큼 확실히 버는 걸 중요하게 생각해요.", strengths:["성실한 개근","현장 리더십"], caution:"몸 사리는 편한 일엔 흥미가 덜해요." },
+  EDSG:{ emoji:"🌟", nick:"성장형 리더", tag:"몸으로 부딪히며 오래 성장", desc:"활동적이고 꾸준하며 배움을 좇는 리더 기질의 타입이에요. 한 곳에 오래 몸담으며 일도 사람도 챙기다 보면, 시간이 지날수록 팀을 이끄는 중심축이 돼요. 몸으로 부딪혀 경험을 쌓는 걸 마다하지 않고, 당장의 시급보다 이 일이 나를 어떻게 성장시킬지를 더 크게 봐요.", strengths:["강한 책임감","팀을 이끄는 힘"], caution:"단기 알바로는 성에 안 찰 수 있어요." },
+  ECFP:{ emoji:"💁", nick:"눈치백단 응대러", tag:"사람은 잘 다루되 여유롭게 실속", desc:"사람을 다루는 센스는 뛰어나지만 무리하지 않고 유연하게, 실속을 챙기는 타입이에요. 손님의 기분과 상황을 빠르게 읽어 부드럽게 응대하면서도, 체력을 갈아 넣는 고된 일은 현명하게 피해요. 스케줄을 내 상황에 맞춰 조율하고, 편하면서도 벌이가 괜찮은 자리를 잘 찾아내요.", strengths:["뛰어난 응대 센스","유연한 스케줄 관리"], caution:"고강도 육체노동은 쉽게 지쳐요." },
+  ECFG:{ emoji:"🗺️", nick:"소통 탐험가", tag:"사람과 어울리며 다양하게 배움", desc:"사람과의 소통을 즐기고 호기심이 넘쳐, 여러 알바를 두루 경험하며 세상을 넓혀가는 타입이에요. 새로운 사람과 환경을 만나는 걸 두려워하지 않고, 그 안에서 배우는 것들을 즐거워해요. 몸이 힘든 일보다는 대화와 배움이 있는 일에서 활기를 얻고, 한 가지를 반복하기보다 다양하게 시도하는 걸 좋아해요.", strengths:["뛰어난 친화력","끝없는 호기심"], caution:"반복 업무엔 쉽게 질려요." },
+  ECSP:{ emoji:"🤝", nick:"단골 메이커", tag:"안정적으로 신뢰를 쌓는 서비스형", desc:"한 곳에서 손님과 신뢰를 차곡차곡 쌓아가는 안정형 응대러예요. 매일 오는 단골의 이름과 취향을 기억하고 살뜰히 챙기며, 그렇게 만든 관계에서 보람을 느껴요. 급하게 바뀌는 환경보다 예측 가능한 자리를 선호하고, 오래 다니며 안정적으로 벌이를 이어가는 걸 편안해해요.", strengths:["꾸준한 신뢰 형성","안정감"], caution:"급변하는 환경은 스트레스예요." },
+  ECSG:{ emoji:"🎀", nick:"서비스 장인", tag:"한 곳에서 응대 전문성 키우기", desc:"응대를 즐기며 한자리에서 전문성을 깊게 쌓아가는 장인형이에요. 손님을 세심하게 살피는 감각을 오래 갈고닦아, 시간이 지날수록 '이 사람이 있어야 한다'는 신뢰를 얻어요. 뜨내기처럼 여기저기 옮기기보다 한 곳에 정착해 서비스의 깊이를 더하는 데서 성취감을 느껴요.", strengths:["전문성 축적","세심한 응대"], caution:"뜨내기·단기 근무는 안 맞아요." },
+  IDFP:{ emoji:"🛵", nick:"프리한 행동파", tag:"혼자·몸으로·유연하게·효율로", desc:"혼자 몸을 움직여 유연하게, 효율적으로 버는 독립 실행가예요. 누가 시키지 않아도 알아서 움직이고, 동선과 시간을 최적화해 같은 시간에 더 많이 해내는 데 능해요. 팀에 얽매여 응대하는 일보다 혼자 자유롭게 뛰며 확실히 버는 일에서 훨씬 편하고 능률이 올라요.", strengths:["독립적 실행력","뛰어난 시간 효율"], caution:"팀 응대 위주 알바는 답답해요." },
+  IDFG:{ emoji:"💪", nick:"묵묵한 도전러", tag:"말없이 몸으로 부딪히며 배움", desc:"말수는 적어도 몸으로 부딪히며 근성으로 배워나가는 타입이에요. 힘든 일 앞에서 불평 없이 묵묵히 해내고, 그 과정에서 스스로 요령과 실력을 터득해요. 혼자서도 척척 해내는 독립성이 강점이라, 과한 감정노동보다 몸을 쓰며 성장할 수 있는 일에서 진가를 발휘해요.", strengths:["강한 근성","혼자서도 척척"], caution:"과한 감정노동엔 쉽게 지쳐요." },
+  IDSP:{ emoji:"🧱", nick:"성실한 일꾼", tag:"혼자서도 꾸준히 제 몫", desc:"묵묵하고 성실하게, 혼자서도 든든히 제 몫을 해내는 타입이에요. 한번 맡은 일은 꾸준히 개근하며 끝까지 책임지고, 화려하진 않아도 믿고 맡길 수 있는 사람이라는 평을 들어요. 요란한 응대보다 몸을 쓰는 안정적인 일을 편안해하고, 정한 스케줄대로 착실히 벌어가는 걸 좋아해요.", strengths:["묵묵한 성실함","높은 체력"], caution:"화려한 응대는 부담스러워요." },
+  IDSG:{ emoji:"🔧", nick:"뚝심 기술러", tag:"한 우물 파며 손기술 축적", desc:"한 분야를 꾸준히 파고들며 손기술을 쌓아가는 장인형이에요. 산만하게 여러 일을 벌이기보다 한 우물을 깊게 파, 시간이 지날수록 남들이 쉽게 못 따라오는 숙련도를 갖춰요. 몸으로 익히는 일에 강하고, 당장의 편함보다 이 기술이 온전히 내 것이 되는 과정에서 뿌듯함을 느껴요.", strengths:["강한 집중력","빠른 기술 습득"], caution:"산만한 멀티태스킹은 비효율이에요." },
+  ICFP:{ emoji:"🎧", nick:"마이페이스 실속러", tag:"조용히·편하게·유연하게·실속", desc:"내 페이스대로 조용하고 편하게, 실속을 챙기는 타입이에요. 북적이는 현장에 휩쓸리기보다 나만의 리듬으로 차분히 일할 때 능률이 가장 좋아요. 스케줄도 상황에 맞춰 유연하게 조율하고, 무리하지 않으면서 벌이가 괜찮은 자리를 똑똑하게 골라내요.", strengths:["자기 페이스 유지","좋은 효율 감각"], caution:"북적이는 현장은 진이 빠져요." },
+  ICFG:{ emoji:"📚", nick:"조용한 탐구가", tag:"혼자 차분히 이것저것 배움", desc:"조용한 환경에서 스스로 이것저것 익혀나가는 자기주도 탐구형이에요. 시키기 전에 관심 가는 걸 먼저 파고들고, 혼자 차분히 몰입할 때 가장 많이 배우고 성장해요. 즉흥적인 응대나 소란스러운 현장보다, 생각하고 익힐 여유가 있는 일에서 자기다움을 발휘해요.", strengths:["자기주도 학습","차분함"], caution:"즉흥적인 응대 상황엔 당황스러워요." },
+  ICSP:{ emoji:"🛡️", nick:"집중형 지킴이", tag:"조용한 자리에서 안정적으로", desc:"조용하고 안정적인 자리를 꾸준히 지키는 든든한 타입이에요. 정해진 자리에서 흔들림 없이 제 역할을 해내고, 그 한결같음이 곧 신뢰가 돼요. 변화와 소란보다 예측 가능한 루틴을 편안해하고, 한 곳에 오래 머물며 안정적으로 벌이를 이어가는 걸 좋아해요.", strengths:["안정 선호","한결같은 꾸준함"], caution:"변화와 소란은 스트레스예요." },
+  ICSG:{ emoji:"🔬", nick:"몰입형 연구러", tag:"한자리에서 깊게 파고들기", desc:"조용히 한자리에서 깊게 몰입하며 꼼꼼히 파고드는 타입이에요. 남들이 놓치는 디테일까지 챙기고, 한 가지를 오래 붙잡아 완성도를 끌어올리는 데서 만족을 느껴요. 빠른 회전이나 멀티태스킹보다, 집중해서 깊이 있게 다룰 수 있는 일에서 가장 빛나요.", strengths:["깊은 몰입","꼼꼼함"], caution:"빠른 회전·멀티태스킹은 힘들어요." },
+};
+
+/* 축 점수 → 유형 매칭 */
+function typeScore(code, t) {
+  let s = 0;
+  s += code[0] === "E" ? t.social : (6 - t.social);
+  s += code[1] === "D" ? t.physical : (6 - t.physical);
+  s += code[2] === "F" ? (t.flex ? 3 : 0) : (t.flex ? 0 : 2);
+  s += code[3] === "P" ? t.pay : t.learn;
+  return s;
+}
+function recommendTypes(code) {
+  const ranked = TYPES.map((t) => ({ t, s: typeScore(code, t) })).sort((a, b) => b.s - a.s);
+  const max = ranked[0].s || 1;
+  return ranked.map((r) => ({ ...r, pct: Math.min(98, 60 + Math.round((r.s / max) * 38)) }));
+}
+// 코드 vs 유형 — 축별로 잘 맞는 이유를 문장으로 생성(강한 것 순으로 최대 3개)
+function matchReasons(code, t) {
+  const r = [];
+  if (code[0] === "E" && t.social >= 4) r.push("손님·동료 응대가 많아 응대형인 당신에게 활력이 돼요");
+  if (code[0] === "I" && t.social <= 2) r.push("혼자 조용히 할 수 있어 독립형인 당신에게 편해요");
+  if (code[1] === "D" && t.physical >= 4) r.push("계속 몸을 움직여 활동형인 당신에게 시간이 잘 가요");
+  if (code[1] === "C" && t.physical <= 2) r.push("체력 부담이 적어 차분형인 당신에게 잘 맞아요");
+  if (code[2] === "F" && t.flex) r.push("단기·유연 근무라 유연형인 당신과 궁합이 좋아요");
+  if (code[2] === "S" && !t.flex) r.push("꾸준히 다니기 좋아 성실형인 당신에게 안정적이에요");
+  if (code[3] === "P" && t.pay >= 3) r.push("시급이 괜찮아 실속형인 당신에게 매력적이에요");
+  if (code[3] === "G" && t.learn >= 4) r.push("배울 게 많아 성장형인 당신에게 도움이 돼요");
+  return r.slice(0, 3);
+}
+function relatedBasics(code) {
+  const beginnerish = code[3] === "G";
+  return beginnerish ? BASICS.filter((b) => ["contract","firstday","interview","wage"].includes(b.id))
+                     : BASICS.filter((b) => ["contract","wage","weekly","safety"].includes(b.id));
+}
+// 응답(letter 배열) → { code, axisPct: [{a,b,lead,pct}] }
+function computeResult(letters) {
+  const axisPct = AXES.map(([A, B], i) => {
+    const qs = QUIZ.map((q, idx) => ({ q, idx })).filter((x) => x.q.ax === i);
+    const aCount = qs.filter((x) => letters[x.idx] === A).length;
+    const total = qs.length;
+    const lead = aCount >= total - aCount ? A : B;
+    const pct = Math.round((Math.max(aCount, total - aCount) / total) * 100);
+    return { a: A, b: B, aCount, total, lead, pct };
+  });
+  return { code: axisPct.map((x) => x.lead).join(""), axisPct };
+}
+
+/* ============================================================ UI ============================================================ */
+const LS = { get(k,f){try{const v=localStorage.getItem("mbti_"+k);return v==null?f:JSON.parse(v);}catch(e){return f;}}, set(k,v){try{localStorage.setItem("mbti_"+k,JSON.stringify(v));}catch(e){}} };
+
+async function apiSend(url, body) {
+  try { const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); return await r.json(); }
+  catch (e) { return { ok: false, error: "네트워크 오류" }; }
+}
+// 토스페이먼츠 v2 표준 SDK 동적 로드
+let tossLoading = null;
+function loadToss() {
+  if (window.TossPayments) return Promise.resolve(window.TossPayments);
+  if (tossLoading) return tossLoading;
+  tossLoading = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://js.tosspayments.com/v2/standard";
+    s.onload = () => resolve(window.TossPayments);
+    s.onerror = () => { tossLoading = null; reject(new Error("SDK 로드 실패")); };
+    document.head.appendChild(s);
+  });
+  return tossLoading;
+}
+
+function Intro({ onStart, onBrowse, prev }) {
+  return (
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-violet-600 via-indigo-600 to-indigo-500 text-white px-7 pt-16 pb-8">
+      <div className="flex-1 flex flex-col justify-center">
+        <div className="text-6xl pop">🧬</div>
+        <h1 className="text-4xl font-black mt-6 leading-tight">알바 MBTI</h1>
+        <p className="text-indigo-100 mt-4 leading-relaxed">
+          12개 질문으로 알아보는 나의 알바 성향.<br/>
+          <b>16가지 유형</b> 중 내 유형과, 잘 맞는<br/>알바 <b>추천 + 가이드</b>까지 알려줄게요.
+        </p>
+        <p className="text-indigo-200/80 text-xs mt-4">1분 · 로그인 없음 · 결과 저장</p>
+      </div>
+      <button onClick={() => onStart(false)} className="w-full bg-white text-indigo-600 font-bold py-4 rounded-2xl active:scale-95 transition text-lg">
+        {prev ? "다시 테스트하기" : "테스트 시작하기"}
+      </button>
+      <button onClick={onBrowse} className="w-full mt-3 bg-white/10 text-white font-bold py-4 rounded-2xl active:scale-95 transition text-base border border-white/20">
+        📚 알바 정보 둘러보기 <span className="text-indigo-100 font-normal text-sm">· 무료</span>
+      </button>
+      {prev && (
+        <button onClick={() => onStart(true)} className="mt-3 text-indigo-100 text-sm">
+          {prev.paid ? <>지난 결과 보기 · <b>{PERSONAS[prev.code].emoji} {prev.code} {PERSONAS[prev.code].nick}</b></> : "지난 결과 이어서 확인하기 🔒"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Quiz({ onDone, onBack }) {
+  const [i, setI] = useState(0);
+  const [letters, setLetters] = useState([]);
+  const cur = QUIZ[i];
+  const pick = (letter) => {
+    const next = [...letters]; next[i] = letter; setLetters(next);
+    if (i < QUIZ.length - 1) setTimeout(() => setI(i + 1), 140);
+    else setTimeout(() => onDone(next), 140);
+  };
+  return (
+    <div className="min-h-screen bg-white px-6 pt-14 pb-10 flex flex-col">
+      <div className="flex items-center gap-3">
+        <button onClick={() => (i === 0 ? onBack() : setI(i - 1))} className="text-gray-400 text-lg">‹</button>
+        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+          <div className="h-full bg-indigo-500 transition-all" style={{ width: `${((i + 1) / QUIZ.length) * 100}%` }} />
+        </div>
+        <span className="text-xs text-gray-400 font-bold">{i + 1}/{QUIZ.length}</span>
+      </div>
+      <div className="mt-14 flex-1" key={i}>
+        <div className="rise">
+          <div className="text-sm font-bold text-indigo-500">Q{i + 1}</div>
+          <h2 className="text-2xl font-bold mt-2 leading-snug">{cur.q}</h2>
+          <div className="mt-10 space-y-3">
+            {[cur.a, cur.b].map(([letter, label]) => (
+              <button key={letter} onClick={() => pick(letter)}
+                className="w-full text-left px-5 py-5 rounded-2xl text-base font-bold border-2 border-gray-100 bg-gray-50 text-gray-700 transition active:scale-[.98] active:border-indigo-400 active:bg-indigo-50">
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Result({ result, onRetry, onGuide }) {
+  const { code, axisPct } = result;
+  const p = PERSONAS[code];
+  const recs = useMemo(() => recommendTypes(code), [code]);
+  const top = recs.slice(0, 3);
+  const worst = recs[recs.length - 1];
+  const basics = useMemo(() => relatedBasics(code), [code]);
+  const envTags = code.split("").map((ch) => ENV_TAG[ch]);
+  const summary = code.split("").map((ch) => AXIS_INFO[ch].key).join(" · ");
+  const share = () => {
+    const txt = `내 알바 MBTI는 ${code} ${p.emoji} ${p.nick}!\n잘 맞는 알바: ${top.map((r) => r.t.name).join(", ")}\n#알바MBTI`;
+    try { navigator.clipboard.writeText(txt); alert("결과를 복사했어요! 붙여넣기로 공유하세요 📋"); }
+    catch (e) { alert(txt); }
+  };
+  return (
+    <div className="pb-16">
+      <div className="bg-gradient-to-b from-violet-600 via-indigo-600 to-indigo-500 text-white px-5 pt-14 pb-8 rounded-b-3xl text-center">
+        <div className="text-6xl pop">{p.emoji}</div>
+        <div className="mt-3 text-3xl font-black tracking-widest">{code}</div>
+        <div className="mt-1 text-lg font-bold">{p.nick}</div>
+        <div className="text-indigo-100 text-sm mt-1">{p.tag}</div>
+      </div>
+
+      <div className="px-5 mt-5">
+        <p className="text-gray-700 leading-relaxed text-[15px]">{p.desc}</p>
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {p.strengths.map((s, i) => <span key={i} className="text-xs bg-emerald-50 text-emerald-600 font-bold px-2.5 py-1 rounded-full">💪 {s}</span>)}
+          <span className="text-xs bg-amber-50 text-amber-700 font-bold px-2.5 py-1 rounded-full">⚠️ {p.caution}</span>
+        </div>
+      </div>
+
+      {/* 성향 4축 막대 */}
+      <div className="px-5 mt-6 space-y-3">
+        {axisPct.map((x, i) => {
+          const leftActive = x.lead === x.a;
+          return (
+            <div key={i}>
+              <div className="flex justify-between text-[11px] font-bold mb-1">
+                <span className={leftActive ? "text-indigo-600" : "text-gray-300"}>{x.a} {AXIS_LABEL[x.a]}</span>
+                <span className={!leftActive ? "text-indigo-600" : "text-gray-300"}>{AXIS_LABEL[x.b]} {x.b}</span>
+              </div>
+              <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden flex">
+                {leftActive
+                  ? <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${x.pct}%` }} />
+                  : <div className="h-full bg-indigo-500 rounded-full ml-auto" style={{ width: `${x.pct}%` }} />}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 성향 상세 분석 — 내가 나온 극성 기준 4축 해설 */}
+      <div className="px-5 mt-8">
+        <h2 className="font-bold text-lg">🧠 내 성향 자세히 보기</h2>
+        <p className="text-xs text-gray-400 mt-1">{summary}</p>
+        <div className="mt-3 space-y-2.5">
+          {axisPct.map((x, i) => {
+            const info = AXIS_INFO[x.lead];
+            return (
+              <div key={i} className="bg-white border border-gray-100 shadow-sm rounded-2xl p-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">{x.lead} {AXIS_LABEL[x.lead]}</span>
+                  <span className="text-[11px] font-bold text-gray-400">{x.pct}%</span>
+                  <span className="text-sm font-bold text-gray-800 ml-auto">{info.key}</span>
+                </div>
+                <p className="text-[13px] text-gray-600 leading-relaxed mt-2">{info.desc}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 잘 맞는 근무 환경 */}
+      <div className="px-5 mt-8">
+        <h2 className="font-bold text-lg">🧭 이런 근무 환경이 잘 맞아요</h2>
+        <div className="flex flex-wrap gap-2 mt-3">
+          {envTags.map((t, i) => <span key={i} className="text-sm bg-indigo-50 text-indigo-700 font-bold px-3 py-1.5 rounded-xl">{t}</span>)}
+        </div>
+      </div>
+
+      <div className="px-5 mt-8">
+        <h2 className="font-bold text-lg">🎯 {p.nick}에게 잘 맞는 알바</h2>
+        <div className="mt-3 space-y-4">
+          {top.map((r, idx) => (
+            <div key={r.t.id} className="rise bg-white border border-gray-100 shadow-sm rounded-3xl p-5" style={{ animationDelay: `${idx * 70}ms` }}>
+              <div className="flex items-center gap-3">
+                <div className="text-4xl">{r.t.emoji}</div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-gray-400">{idx === 0 ? "BEST" : `${idx + 1}순위`}</span>
+                    <span className="text-[11px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full">매칭 {r.pct}%</span>
+                  </div>
+                  <h3 className="font-bold text-lg leading-tight">{r.t.name}</h3>
+                </div>
+              </div>
+              <p className="text-sm text-gray-500 mt-2 leading-relaxed">{r.t.oneLine}</p>
+              {matchReasons(code, r.t).length > 0 && (
+                <div className="mt-3 bg-indigo-50/60 rounded-2xl p-3.5">
+                  <div className="text-[11px] font-bold text-indigo-500 mb-1.5">왜 잘 맞을까?</div>
+                  <ul className="space-y-1">
+                    {matchReasons(code, r.t).map((why, i) => (
+                      <li key={i} className="flex gap-1.5 text-[13px] text-gray-700 leading-relaxed"><span className="text-indigo-400">✓</span>{why}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <button onClick={() => onGuide({ kind: "type", id: r.t.id })}
+                className="mt-4 w-full bg-indigo-600 text-white font-bold py-3 rounded-xl active:scale-95 transition text-sm">
+                📖 {r.t.name} 가이드 보기
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 신중히 볼 알바 — 최하위 매칭 */}
+      {worst && (
+        <div className="px-5 mt-8">
+          <h2 className="font-bold text-lg">⚠️ 이런 알바는 신중히</h2>
+          <div className="mt-3 bg-amber-50 border border-amber-100 rounded-3xl p-5">
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">{worst.t.emoji}</div>
+              <div className="flex-1">
+                <div className="text-[11px] font-bold text-amber-600">매칭 {worst.pct}% · 낮음</div>
+                <h3 className="font-bold text-base leading-tight">{worst.t.name}</h3>
+              </div>
+            </div>
+            <p className="text-[13px] text-gray-600 mt-2 leading-relaxed">
+              {p.caution} 이 유형은 당신의 성향과 결이 달라, 시작 전에 근무 조건을 특히 꼼꼼히 확인하는 걸 권해요.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="px-5 mt-8">
+        <h2 className="font-bold text-lg">📚 이건 꼭 알아두세요</h2>
+        <div className="mt-3 space-y-2">
+          {basics.map((b) => (
+            <button key={b.id} onClick={() => onGuide({ kind: "basic", id: b.id })}
+              className="w-full text-left bg-white border border-gray-100 shadow-sm rounded-2xl p-4 flex gap-3 items-center active:scale-[.99] transition">
+              <div className="text-2xl">{b.emoji}</div>
+              <div className="flex-1 min-w-0"><div className="font-bold text-sm">{b.title}</div><div className="text-xs text-gray-400 mt-0.5 truncate">{b.sub}</div></div>
+              <span className="text-gray-300">›</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 mt-8">
+        <details className="bg-gray-50 rounded-2xl p-4">
+          <summary className="font-bold text-sm cursor-pointer">전체 알바 유형 15종 둘러보기</summary>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {TYPES.map((t) => (
+              <button key={t.id} onClick={() => onGuide({ kind: "type", id: t.id })} className="bg-white rounded-2xl p-3 text-left border border-gray-100 active:scale-95 transition">
+                <div className="text-2xl">{t.emoji}</div><div className="font-bold text-sm mt-1">{t.name}</div><div className="text-[11px] text-gray-400">{t.tag}</div>
+              </button>
+            ))}
+          </div>
+        </details>
+      </div>
+
+      <div className="px-5 mt-8 flex gap-2">
+        <button onClick={share} className="flex-1 bg-indigo-600 text-white font-bold py-3.5 rounded-xl active:scale-95 transition">📋 결과 공유</button>
+        <button onClick={onRetry} className="flex-1 bg-gray-100 text-gray-600 font-bold py-3.5 rounded-xl active:scale-95 transition">🔄 다시 하기</button>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, children }) {
+  return <div className="px-5 mt-6">{title && <h2 className="font-bold text-lg mb-3">{title}</h2>}{children}</div>;
+}
+function Guide({ target, onBack, backLabel = "‹ 결과로" }) {
+  if (target.kind === "type") {
+    const t = TYPES.find((x) => x.id === target.id);
+    return (
+      <div className="pb-16">
+        <div className="bg-gradient-to-b from-indigo-600 to-indigo-500 text-white px-5 pt-14 pb-7 rounded-b-3xl">
+          <button onClick={onBack} className="text-indigo-100 text-sm">{backLabel}</button>
+          <div className="text-5xl mt-3">{t.emoji}</div>
+          <h1 className="text-2xl font-bold mt-2">{t.name}</h1>
+          <p className="text-indigo-100 text-sm mt-1">{t.tag}</p>
+          <p className="text-indigo-100 text-sm mt-3 leading-relaxed">{t.oneLine}</p>
+        </div>
+        {t.about && (
+          <Section title="이런 알바예요">
+            <p className="text-sm text-gray-700 leading-relaxed">{t.about}</p>
+          </Section>
+        )}
+        <Section title="이런 일을 해요">
+          <ul className="space-y-2">{t.doing.map((d, i) => <li key={i} className="flex gap-2 text-sm text-gray-700"><span className="text-indigo-400">•</span>{d}</li>)}</ul>
+        </Section>
+        <Section title="이런 사람에게 잘 맞아요">
+          <p className="text-sm text-gray-700 leading-relaxed bg-emerald-50 rounded-2xl p-4">{t.goodFor}</p>
+        </Section>
+        {t.hard && (
+          <Section title="😥 이런 점은 힘들어요">
+            <ul className="space-y-2.5">{t.hard.map((h, i) => <li key={i} className="flex gap-2.5 text-sm text-gray-700 bg-amber-50 rounded-xl p-3.5"><span className="text-amber-500">•</span>{h}</li>)}</ul>
+          </Section>
+        )}
+        <Section title="💡 미리 알면 좋은 꿀팁">
+          <ul className="space-y-2.5">{t.tips.map((tip, i) => <li key={i} className="flex gap-2.5 text-sm text-gray-700 bg-gray-50 rounded-xl p-3.5"><span className="font-bold text-indigo-500">{i + 1}</span>{tip}</li>)}</ul>
+        </Section>
+      </div>
+    );
+  }
+  const b = BASICS.find((x) => x.id === target.id);
+  return (
+    <div className="pb-16">
+      <div className="px-5 pt-14">
+        <button onClick={onBack} className="text-gray-400 text-sm">{backLabel}</button>
+        <div className="text-5xl mt-3">{b.emoji}</div>
+        <h1 className="text-2xl font-bold mt-2 leading-tight">{b.title}</h1>
+        <p className="text-gray-500 mt-2">{b.sub}</p>
+      </div>
+      <Section title="">
+        <ul className="space-y-2.5">{b.points.map((p, i) => <li key={i} className="flex gap-2.5 text-sm text-gray-700 bg-gray-50 rounded-xl p-3.5"><span className="text-indigo-400">✓</span>{p}</li>)}</ul>
+      </Section>
+      <div className="px-5 mt-2 text-[11px] text-gray-400">※ 최저시급 등 수치는 2026년 기준 예시예요.</div>
+    </div>
+  );
+}
+
+// 결제 없이 누구나 볼 수 있는 알바 정보(유형 가이드 + 기본 상식). 개인화 진단만 유료.
+function Browse({ onBack, onGuide }) {
+  return (
+    <div className="pb-16">
+      <div className="bg-gradient-to-b from-violet-600 via-indigo-600 to-indigo-500 text-white px-5 pt-14 pb-8 rounded-b-3xl">
+        <button onClick={onBack} className="text-indigo-100 text-sm">‹ 처음으로</button>
+        <div className="text-5xl mt-3">📚</div>
+        <h1 className="text-2xl font-black mt-2">알바 정보</h1>
+        <p className="text-indigo-100 text-sm mt-2 leading-relaxed">알바 유형 15종 가이드와 꼭 알아둘 기본 상식이에요.<br/>결제 없이 자유롭게 둘러보세요.</p>
+      </div>
+
+      <div className="px-5 mt-7">
+        <h2 className="font-bold text-lg">🧭 알바 유형 15종</h2>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {TYPES.map((t) => (
+            <button key={t.id} onClick={() => onGuide({ kind: "type", id: t.id })} className="bg-white rounded-2xl p-3 text-left border border-gray-100 shadow-sm active:scale-95 transition">
+              <div className="text-2xl">{t.emoji}</div><div className="font-bold text-sm mt-1">{t.name}</div><div className="text-[11px] text-gray-400">{t.tag}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 mt-8">
+        <h2 className="font-bold text-lg">📌 이건 꼭 알아두세요</h2>
+        <div className="mt-3 space-y-2">
+          {BASICS.map((b) => (
+            <button key={b.id} onClick={() => onGuide({ kind: "basic", id: b.id })}
+              className="w-full text-left bg-white border border-gray-100 shadow-sm rounded-2xl p-4 flex gap-3 items-center active:scale-[.99] transition">
+              <div className="text-2xl">{b.emoji}</div>
+              <div className="flex-1 min-w-0"><div className="font-bold text-sm">{b.title}</div><div className="text-xs text-gray-400 mt-0.5 truncate">{b.sub}</div></div>
+              <span className="text-gray-300">›</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-5 mt-9">
+        <div className="bg-indigo-50 rounded-2xl p-5 text-center">
+          <div className="font-bold text-indigo-700">내 알바 유형이 궁금하다면?</div>
+          <p className="text-sm text-indigo-500/80 mt-1">12문항으로 나에게 딱 맞는 알바를 찾아보세요.</p>
+          <button onClick={onBack} className="mt-4 w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl active:scale-95 transition">알바 MBTI 테스트 하러 가기</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const PRICE = 990;
+function Pay({ result, clientKey, onPaid, onBack }) {
+  const [busy, setBusy] = useState(false);
+  const p = PERSONAS[result.code];
+  // 실제 토스 테스트 결제 (clientKey 있을 때) — successUrl로 리다이렉트되며 App이 confirm 처리
+  const payReal = async () => {
+    setBusy(true);
+    try {
+      const TossPayments = await loadToss();
+      const tp = TossPayments(clientKey);
+      const payment = tp.payment({ customerKey: "ANONYMOUS" });
+      const orderId = "mbti_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+      await payment.requestPayment({
+        method: "CARD",
+        amount: { currency: "KRW", value: PRICE },
+        orderId,
+        orderName: "알바 MBTI 결과 리포트",
+        successUrl: window.location.origin + window.location.pathname,
+        failUrl: window.location.origin + window.location.pathname + "?tossfail=1",
+      });
+    } catch (e) { setBusy(false); alert("결제를 시작하지 못했어요. " + (e && e.message ? e.message : "")); }
+  };
+  const payMock = () => { setBusy(true); setTimeout(() => { setBusy(false); onPaid(); }, 1000); };
+  const pay = clientKey ? payReal : payMock;
+  return (
+    <div className="min-h-screen flex flex-col pb-8">
+      <div className="bg-gradient-to-b from-violet-600 via-indigo-600 to-indigo-500 text-white px-5 pt-14 pb-8 rounded-b-3xl text-center">
+        <div className="text-2xl font-black">결과가 완성됐어요! 🎉</div>
+        <p className="text-indigo-100 text-sm mt-2">결제하면 바로 확인할 수 있어요</p>
+      </div>
+      <div className="px-5 mt-6 flex-1">
+        <div className="relative bg-white border border-gray-100 shadow-sm rounded-3xl p-8 text-center overflow-hidden">
+          <div className="blur-md select-none" aria-hidden="true">
+            <div className="text-6xl">{p.emoji}</div>
+            <div className="mt-2 text-3xl font-black tracking-widest">{result.code}</div>
+            <div className="text-lg font-bold">{p.nick}</div>
+          </div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/50">
+            <div className="text-4xl">🔒</div>
+            <div className="font-bold mt-2 text-gray-700">당신의 알바 유형은?</div>
+          </div>
+        </div>
+        <div className="mt-5 bg-gray-50 rounded-2xl p-4">
+          <div className="font-bold text-sm mb-2">이런 걸 볼 수 있어요</div>
+          <ul className="text-sm text-gray-600 space-y-1.5">
+            <li>✓ 16유형 중 내 알바 성향 유형 + 상세 분석</li>
+            <li>✓ 성향 4축 그래프 · 강점 · 주의점</li>
+            <li>✓ 나에게 잘 맞는 알바 Top 3 + 맞춤 가이드</li>
+          </ul>
+        </div>
+        <div className="mt-5 flex items-center justify-between px-1">
+          <span className="text-gray-500">알바 MBTI 결과 리포트</span>
+          <span className="text-2xl font-black">₩{PRICE.toLocaleString()}</span>
+        </div>
+      </div>
+      <div className="px-5">
+        <button disabled={busy} onClick={pay}
+          className="w-full bg-indigo-600 disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl active:scale-95 transition text-lg">
+          {busy ? "결제 중…" : `${PRICE.toLocaleString()}원 결제하고 결과 보기`}
+        </button>
+        <button onClick={onBack} className="w-full mt-2 text-gray-400 text-sm py-2">처음으로</button>
+        <p className="text-center text-[11px] text-gray-400 mt-2">
+          {clientKey ? "💳 토스페이먼츠 테스트 결제 · 실제 청구되지 않아요(테스트 카드)" : "🧪 모의 결제(토스 키 미설정) · 실제 청구되지 않아요"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const hasRedirect = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("paymentKey");
+  const [screen, setScreen] = useState(hasRedirect ? "confirm" : "intro");
+  const [result, setResult] = useState(LS.get("result", null));
+  const [guide, setGuide] = useState(null);
+  const [guideFrom, setGuideFrom] = useState("result");
+  const [clientKey, setClientKey] = useState("");
+
+  useEffect(() => {
+    fetch("/api/config").then((r) => r.json()).then((d) => setClientKey((d && d.tossClientKey) || "")).catch(() => {});
+    const params = new URLSearchParams(window.location.search);
+    const clean = () => window.history.replaceState({}, "", window.location.pathname);
+    if (params.get("tossfail")) { clean(); alert("결제가 취소되었거나 실패했어요."); return; }
+    const paymentKey = params.get("paymentKey");
+    if (paymentKey) {
+      apiSend("/api/confirm", { paymentKey, orderId: params.get("orderId"), amount: params.get("amount") }).then((d) => {
+        clean();
+        if (d && d.ok) {
+          const cur = LS.get("result", null);
+          if (cur) { const r = { ...cur, paid: true }; setResult(r); LS.set("result", r); setScreen("result"); }
+          else setScreen("intro");
+        } else {
+          alert("결제 확인에 실패했어요. " + ((d && d.error) || ""));
+          setScreen(LS.get("result", null) ? "pay" : "intro");
+        }
+        window.scrollTo(0, 0);
+      });
+    }
+  }, []);
+
+  const start = (prev) => { if (prev && result) setScreen(result.paid ? "result" : "pay"); else setScreen("quiz"); };
+  const done = (letters) => { const r = { ...computeResult(letters), paid: false }; setResult(r); LS.set("result", r); setScreen("pay"); window.scrollTo(0, 0); };
+  const onPaid = () => { const r = { ...result, paid: true }; setResult(r); LS.set("result", r); setScreen("result"); window.scrollTo(0, 0); };
+  const openGuide = (t, from = "result") => { setGuide(t); setGuideFrom(from); setScreen("guide"); window.scrollTo(0, 0); };
+  const openBrowse = () => { setScreen("browse"); window.scrollTo(0, 0); };
+  return (
+    <div className="phone noscroll">
+      {screen === "confirm" && (
+        <div className="min-h-screen flex flex-col items-center justify-center text-gray-400 gap-3">
+          <div className="text-4xl animate-pulse">💳</div><div className="font-bold">결제를 확인하고 있어요…</div>
+        </div>
+      )}
+      {screen === "intro" && <Intro onStart={start} onBrowse={openBrowse} prev={result} />}
+      {screen === "browse" && <Browse onBack={() => setScreen("intro")} onGuide={(t) => openGuide(t, "browse")} />}
+      {screen === "quiz" && <Quiz onDone={done} onBack={() => setScreen("intro")} />}
+      {screen === "pay" && result && <Pay result={result} clientKey={clientKey} onPaid={onPaid} onBack={() => setScreen("intro")} />}
+      {screen === "result" && result && result.paid && <Result result={result} onRetry={() => setScreen("quiz")} onGuide={openGuide} />}
+      {screen === "guide" && guide && <Guide target={guide} onBack={() => setScreen(guideFrom)} backLabel={guideFrom === "browse" ? "‹ 목록으로" : "‹ 결과로"} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+<script>
+  // 서비스워커 등록(설치형 PWA). HTTPS 또는 localhost에서만 동작.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js").catch(function () {});
+    });
+  }
+</script>
+</body>
+</html>

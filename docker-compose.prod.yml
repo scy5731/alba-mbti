@@ -1,0 +1,34 @@
+# 프로덕션 배포용 — Caddy(자동 HTTPS) + 앱 컨테이너
+# 사용: DOMAIN·토스키를 .env 에 채우고  docker compose -f docker-compose.prod.yml up -d --build
+services:
+  alba:
+    build: .
+    image: alba-app
+    container_name: alba_app
+    environment:
+      # 토스페이먼츠 키는 .env 에서 주입 (지금은 테스트키)
+      - TOSS_CLIENT_KEY=${TOSS_CLIENT_KEY:-}
+      - TOSS_SECRET_KEY=${TOSS_SECRET_KEY:-}
+    expose:
+      - "3000"          # 외부에 직접 노출하지 않고 Caddy 내부망으로만
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: alba_caddy
+    depends_on:
+      - alba
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}   # 예: alba.example.com  (DNS A레코드가 이 VM을 가리켜야 함)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:
