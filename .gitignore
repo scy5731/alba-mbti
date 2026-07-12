@@ -7,6 +7,9 @@ npm-debug.log*
 !.env.example
 toss_key.txt
 
+# 로고 원본(작업용) — 실제 앱 아이콘은 public/icons/ 에 있음
+/icons/
+
 # 데이터/빌드 산출물
 data/
 *.db

@@ -38,4 +38,4 @@ app.post("/api/confirm", async (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, "public")));
-app.listen(PORT, () => console.log(`알바 MBTI 실행: http://localhost:${PORT} (toss ${CLIENT_KEY ? "ON" : "OFF"})`));
+app.listen(PORT, () => console.log(`알바 메이트 실행: http://localhost:${PORT} (toss ${CLIENT_KEY ? "ON" : "OFF"})`));
