@@ -1,5 +1,12 @@
-# Render Blueprint — Dockerfile 기반 웹서비스로 자동 배포.
-# Render 대시보드 New → Blueprint 로 이 레포를 연결하면 아래 설정대로 생성됩니다.
+# Render Blueprint — Dockerfile 웹서비스 + 무료 PostgreSQL(영구 계정 저장).
+# 대시보드 New → Blueprint 로 이 레포를 연결하면 아래 설정대로 DB와 서비스가 생성됩니다.
+databases:
+  - name: alba-db
+    plan: free
+    region: singapore
+    databaseName: alba
+    user: alba
+
 services:
   - type: web
     name: alba-mbti
@@ -9,7 +16,15 @@ services:
     region: singapore        # 한국에서 가장 가까운 Render 리전
     healthCheckPath: /api/config
     envVars:
-      # 값은 레포에 넣지 않고 Render 대시보드에서 입력(보안). sync:false → 배포 시 입력 요청됨.
+      # 계정 저장용 Postgres 연결 문자열 — Blueprint가 위 alba-db에서 자동 주입.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alba-db
+          property: connectionString
+      # 세션 서명 키 — Render가 한 번 생성해 배포 간 유지(재배포해도 로그인 유지).
+      - key: SESSION_SECRET
+        generateValue: true
+      # 결제 키는 레포에 넣지 않고 대시보드에서 입력(보안). sync:false → 배포 시 입력 요청.
       - key: TOSS_CLIENT_KEY
         sync: false
       - key: TOSS_SECRET_KEY

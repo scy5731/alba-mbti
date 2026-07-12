@@ -44,7 +44,13 @@
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useMemo } = React;
+const { useState, useMemo, useEffect } = React;
+async function api(method, url, body) {
+  const opt = { method, headers: {}, credentials: "same-origin" };
+  if (body) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  try { const r = await fetch(url, opt); let d = {}; try { d = await r.json(); } catch (e) {} return { status: r.status, ...d }; }
+  catch (e) { return { status: 0, ok: false, error: "네트워크 오류예요." }; }
+}
 
 /* ============================================================
    알바 유형 (15종) — 성향 축 속성으로 매칭
@@ -770,7 +776,7 @@ function PageHead({ tag, title, sub }) {
 }
 
 const CAT_ICON = { food:"🍔", retail:"🛒", leisure:"🎮", service:"🛎️", office:"💼", labor:"📦", drive:"🛵", edu:"📚", event:"🎉" };
-function Home({ onGuide, onMbti, onNav, onCat, onCalc, prev }) {
+function Home({ onGuide, onMbti, onNav, onCat, onCalc, onAccount, user, prev }) {
   const featuredTypes = TYPES.slice(0, 4);
   const featuredBasics = BASICS.slice(0, 3);
   const featuredArticles = ARTICLES.slice(0, 4);
@@ -778,9 +784,16 @@ function Home({ onGuide, onMbti, onNav, onCat, onCalc, prev }) {
   return (
     <div className="pb-24 bg-gray-50">
       {/* 상단 */}
-      <div className="bg-white px-5 pt-14 pb-4">
-        <div className="text-brand font-extrabold text-sm">알바 메이트</div>
-        <h1 className="text-[22px] font-bold text-gray-900 mt-1 leading-snug">알바가 처음이라면,<br/>여기서 시작하세요</h1>
+      <div className="bg-white px-5 pt-12 pb-4">
+        <div className="flex items-center justify-between">
+          <div className="text-brand font-extrabold text-sm">알바 메이트</div>
+          <button onClick={onAccount} className="shrink-0 press">
+            {user
+              ? <span className="flex items-center gap-1.5"><span className="w-7 h-7 rounded-full bg-brand text-white grid place-items-center text-[13px] font-bold">{(user.nickname || "?").slice(0, 1)}</span><span className="text-[13px] font-semibold text-gray-700 max-w-[84px] truncate">{user.nickname}</span></span>
+              : <span className="text-[13px] font-semibold text-gray-500 border border-gray-200 rounded-full px-3 py-1.5">로그인</span>}
+          </button>
+        </div>
+        <h1 className="text-[22px] font-bold text-gray-900 mt-2 leading-snug">알바가 처음이라면,<br/>여기서 시작하세요</h1>
       </div>
 
       {/* MBTI 배너 (초록 CTA) */}
@@ -1509,19 +1522,136 @@ function Calc() {
   );
 }
 
+/* ============================================================ 계정(이메일 회원가입/로그인) ============================================================ */
+function AuthField({ label, type, value, set, placeholder, autoComplete, onEnter }) {
+  return (
+    <div>
+      <label className="text-[13px] font-semibold text-gray-600">{label}</label>
+      <input type={type} value={value} onChange={(e) => set(e.target.value)} placeholder={placeholder} autoComplete={autoComplete}
+        onKeyDown={(e) => { if (e.key === "Enter" && onEnter) onEnter(); }}
+        className="w-full mt-1.5 px-4 py-3 text-[15px] bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand focus:ring-2 focus:ring-brand/25" />
+    </div>
+  );
+}
+
+function Profile({ user, onUser, onLogout, onBack }) {
+  const [nick, setNick] = useState(user.nickname);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const save = async () => {
+    setBusy(true); const d = await api("PATCH", "/api/auth/profile", { nickname: nick }); setBusy(false);
+    if (d.ok) { onUser(d.user); setMsg("저장했어요 ✓"); setTimeout(() => setMsg(""), 1500); } else setMsg(d.error || "저장에 실패했어요.");
+  };
+  const logout = async () => { await api("POST", "/api/auth/logout"); onLogout(); };
+  const del = async () => { if (!window.confirm("정말 탈퇴할까요? 계정과 저장된 결과가 삭제돼요.")) return; await api("DELETE", "/api/auth/account"); onLogout(); };
+  const r = user.result;
+  return (
+    <div className="pb-24 bg-gray-50 min-h-screen">
+      <TopBar onBack={onBack} label="홈" />
+      <div className="bg-white px-5 pt-6 pb-6 flex items-center gap-3">
+        <div className="w-14 h-14 rounded-full bg-brand text-white grid place-items-center text-2xl font-bold shrink-0">{(user.nickname || "?").slice(0, 1)}</div>
+        <div className="min-w-0"><div className="font-bold text-lg text-gray-900 truncate">{user.nickname}</div><div className="text-[13px] text-gray-500 truncate">{user.email}</div></div>
+      </div>
+
+      <div className="bg-white px-5 py-5 mt-2">
+        <label className="text-[13px] font-semibold text-gray-600">닉네임</label>
+        <div className="flex gap-2 mt-1.5">
+          <input value={nick} onChange={(e) => setNick(e.target.value)} className="flex-1 min-w-0 px-4 py-3 text-[15px] bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand" />
+          <button disabled={busy || !nick.trim() || nick === user.nickname} onClick={save} className="px-5 bg-brand disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-xl press shrink-0">저장</button>
+        </div>
+        {msg && <p className="text-[12px] text-brand mt-2 font-semibold">{msg}</p>}
+      </div>
+
+      {r && (
+        <div className="bg-white px-5 py-5 mt-2">
+          <div className="text-[13px] font-semibold text-gray-600">저장된 알바 MBTI</div>
+          <div className="mt-1.5 font-bold text-[15px] text-gray-900">{PERSONAS[r.code].emoji} {r.code} · {PERSONAS[r.code].nick}</div>
+          <div className="text-[12px] text-gray-400 mt-0.5">여러 기기에서 로그인하면 결과가 함께 보여요.</div>
+        </div>
+      )}
+
+      <div className="px-5 mt-5 space-y-2.5">
+        <button onClick={logout} className="w-full bg-white border border-gray-200 text-gray-700 font-bold py-3.5 rounded-xl press">로그아웃</button>
+        <button onClick={del} className="w-full text-[13px] text-gray-400 py-2">회원 탈퇴</button>
+      </div>
+    </div>
+  );
+}
+
+function AccountScreen({ user, onAuthed, onUser, onLogout, onBack }) {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [nick, setNick] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const submit = async () => {
+    if (busy) return;
+    setErr(""); setBusy(true);
+    const url = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
+    const body = mode === "signup" ? { email, password: pw, nickname: nick } : { email, password: pw };
+    const d = await api("POST", url, body);
+    setBusy(false);
+    if (d.ok && d.user) onAuthed(d.user);
+    else setErr(d.error || "문제가 발생했어요.");
+  };
+  if (user) return <Profile user={user} onUser={onUser} onLogout={onLogout} onBack={onBack} />;
+  return (
+    <div className="pb-24 bg-gray-50 min-h-screen">
+      <TopBar onBack={onBack} label="홈" />
+      <div className="px-5 pt-8">
+        <div className="text-4xl">👋</div>
+        <h1 className="text-2xl font-bold text-gray-900 mt-3">{mode === "signup" ? "회원가입" : "로그인"}</h1>
+        <p className="text-gray-500 mt-1.5 text-[15px]">{mode === "signup" ? "이메일로 간편하게 시작하세요. 결과가 계정에 저장돼요." : "알바 메이트 계정으로 로그인하세요."}</p>
+      </div>
+      <div className="px-5 mt-6 space-y-3">
+        <AuthField label="이메일" type="email" value={email} set={setEmail} placeholder="you@example.com" autoComplete="email" onEnter={submit} />
+        <AuthField label="비밀번호" type="password" value={pw} set={setPw} placeholder="6자 이상" autoComplete={mode === "signup" ? "new-password" : "current-password"} onEnter={submit} />
+        {mode === "signup" && <AuthField label="닉네임 (선택)" type="text" value={nick} set={setNick} placeholder="비우면 이메일 앞부분으로" autoComplete="nickname" onEnter={submit} />}
+        {err && <p className="text-[13px] text-red-500 font-medium">{err}</p>}
+        <button disabled={busy} onClick={submit} className="w-full bg-brand disabled:bg-gray-300 text-white font-bold py-3.5 rounded-xl press text-[16px]">
+          {busy ? "처리 중…" : (mode === "signup" ? "가입하고 시작하기" : "로그인")}
+        </button>
+      </div>
+      <div className="px-5 mt-4 text-center text-[14px] text-gray-500">
+        {mode === "signup"
+          ? <>이미 계정이 있나요? <button onClick={() => { setMode("login"); setErr(""); }} className="text-brand font-bold">로그인</button></>
+          : <>계정이 없나요? <button onClick={() => { setMode("signup"); setErr(""); }} className="text-brand font-bold">회원가입</button></>}
+      </div>
+      <p className="px-5 mt-8 text-[11px] text-gray-400 leading-relaxed text-center">로그인하면 알바 MBTI 결과가 계정에 저장되어<br/>다른 기기에서도 이어서 볼 수 있어요.</p>
+    </div>
+  );
+}
+
 function App() {
-  const [tab, setTab] = useState("home");          // home | types | guideList | mbti | faq
+  const [tab, setTab] = useState("home");          // home | types | guideList | calc | faq
   const [overlay, setOverlay] = useState(null);     // null | quiz | result | detail (탭바 숨김)
   const [result, setResult] = useState(LS.get("result", null));
   const [guide, setGuide] = useState(null);
   const [detailFrom, setDetailFrom] = useState("home"); // 탭 key 또는 "result"
   const [typesCat, setTypesCat] = useState("all");
+  const [user, setUser] = useState(null);
+
+  // 세션 복원 + 계정에 저장된 결과 동기화
+  useEffect(() => {
+    api("GET", "/api/auth/me").then((d) => {
+      if (d && d.user) {
+        setUser(d.user);
+        if (d.user.result && d.user.result.code) { setResult(d.user.result); LS.set("result", d.user.result); }
+      }
+    });
+  }, []);
+  const onAuthed = (u) => { setUser(u); if (u.result && u.result.code) { setResult(u.result); LS.set("result", u.result); } };
+  const onLogout = () => { setUser(null); setOverlay(null); setTab("home"); window.scrollTo(0, 0); };
 
   const goTab = (k) => { setOverlay(null); setTab(k); window.scrollTo(0, 0); };
   const goCat = (cat) => { setTypesCat(cat); setOverlay(null); setTab("types"); window.scrollTo(0, 0); };
   const openGuide = (t, from) => { setGuide(t); setDetailFrom(from); setOverlay("detail"); window.scrollTo(0, 0); };
   const start = (prev) => { setOverlay(prev && result ? "result" : "quiz"); window.scrollTo(0, 0); };
-  const done = (letters) => { const r = computeResult(letters); setResult(r); LS.set("result", r); setOverlay("result"); window.scrollTo(0, 0); };
+  const done = (letters) => {
+    const r = computeResult(letters); setResult(r); LS.set("result", r); setOverlay("result"); window.scrollTo(0, 0);
+    if (user) api("PUT", "/api/me/result", { result: r }).then((d) => { if (d && d.user) setUser(d.user); });
+  };
   const detailBack = () => {
     if (detailFrom === "result") setOverlay("result");
     else { setOverlay(null); setTab(detailFrom); }
@@ -1533,9 +1663,10 @@ function App() {
       {overlay === "quiz" && <Quiz onDone={done} onBack={() => { setOverlay(null); setTab("mbti"); }} />}
       {overlay === "result" && result && <Result result={result} onRetry={() => setOverlay("quiz")} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")} />}
       {overlay === "detail" && guide && <Guide target={guide} onBack={detailBack} backLabel={detailFrom === "result" ? "‹ 결과로" : "‹ 목록으로"} />}
+      {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={() => goTab("home")} />}
 
       {/* 탭 콘텐츠 */}
-      {!overlay && tab === "home" && <Home onGuide={(t) => openGuide(t, "home")} onMbti={() => goTab("mbti")} onNav={goTab} onCat={goCat} onCalc={() => goTab("calc")} prev={result} />}
+      {!overlay && tab === "home" && <Home onGuide={(t) => openGuide(t, "home")} onMbti={() => goTab("mbti")} onNav={goTab} onCat={goCat} onCalc={() => goTab("calc")} onAccount={() => { setOverlay("account"); window.scrollTo(0, 0); }} user={user} prev={result} />}
       {!overlay && tab === "types" && <TypesTab onGuide={(t) => openGuide(t, "types")} initial={typesCat} />}
       {!overlay && tab === "guideList" && <GuideTab onGuide={(t) => openGuide(t, "guideList")} />}
       {!overlay && tab === "calc" && <Calc />}
