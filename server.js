@@ -23,25 +23,36 @@ function makePgStore(url) {
   const { Pool } = require("pg");
   const wantSsl = !/localhost|127\.0\.0\.1/.test(url) && process.env.PGSSL !== "off";
   let pool = new Pool({ connectionString: url, ssl: wantSsl ? { rejectUnauthorized: false } : false });
-  const map = (r) => (r ? { id: r.id, email: r.email, passHash: r.pass_hash, nickname: r.nickname, result: r.result || null } : null);
+  const map = (r) => (r ? { id: r.id, email: r.email, passHash: r.pass_hash, nickname: r.nickname, result: r.result || null, premium: !!r.premium } : null);
   const DDL = `CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         pass_hash TEXT NOT NULL,
         nickname TEXT NOT NULL,
         result JSONB,
+        premium BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )`;
+  const MIG = "ALTER TABLE users ADD COLUMN IF NOT EXISTS premium BOOLEAN DEFAULT false";
+  const PAY_DDL = `CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        order_id TEXT,
+        payment_key TEXT UNIQUE,
+        amount INTEGER,
+        user_id INTEGER,
         created_at TIMESTAMPTZ DEFAULT now()
       )`;
   return {
     kind: "postgres",
     async init() {
-      try { await pool.query(DDL); }
+      const run = async () => { await pool.query(DDL); await pool.query(MIG); await pool.query(PAY_DDL); };
+      try { await run(); }
       catch (e) {
         // Render 내부 연결 등 SSL 미지원 엔드포인트면 SSL 없이 재시도
         if (wantSsl && /SSL|does not support/i.test(String(e && e.message))) {
           await pool.end().catch(() => {});
           pool = new Pool({ connectionString: url, ssl: false });
-          await pool.query(DDL);
+          await run();
         } else throw e;
       }
     },
@@ -53,6 +64,9 @@ function makePgStore(url) {
     },
     async updateNickname(id, nickname) { const { rows } = await pool.query("UPDATE users SET nickname=$1 WHERE id=$2 RETURNING *", [nickname, id]); return map(rows[0]); },
     async updateResult(id, result) { const { rows } = await pool.query("UPDATE users SET result=$1 WHERE id=$2 RETURNING *", [result ? JSON.stringify(result) : null, id]); return map(rows[0]); },
+    async setPremium(id, val) { const { rows } = await pool.query("UPDATE users SET premium=$1 WHERE id=$2 RETURNING *", [!!val, id]); return map(rows[0]); },
+    async recordPayment(p) { await pool.query("INSERT INTO payments(order_id,payment_key,amount,user_id) VALUES($1,$2,$3,$4) ON CONFLICT (payment_key) DO NOTHING", [p.orderId, p.paymentKey, p.amount, p.userId]); },
+    async getPayment(pk) { const { rows } = await pool.query("SELECT * FROM payments WHERE payment_key=$1", [pk]); return rows[0] || null; },
     async remove(id) { await pool.query("DELETE FROM users WHERE id=$1", [id]); },
     async count() { const { rows } = await pool.query("SELECT count(*)::int AS n FROM users"); return rows[0].n; },
   };
@@ -60,7 +74,7 @@ function makePgStore(url) {
 
 function makeFileStore(dbPath) {
   let db;
-  const load = () => { try { db = JSON.parse(fs.readFileSync(dbPath, "utf8")); } catch (e) { db = { users: [], nextId: 1 }; } };
+  const load = () => { try { db = JSON.parse(fs.readFileSync(dbPath, "utf8")); } catch (e) { db = { users: [], nextId: 1 }; } if (!db.payments) db.payments = []; };
   const save = () => { fs.mkdirSync(path.dirname(dbPath), { recursive: true }); const tmp = dbPath + ".tmp"; fs.writeFileSync(tmp, JSON.stringify(db)); fs.renameSync(tmp, dbPath); };
   const clone = (u) => (u ? JSON.parse(JSON.stringify(u)) : null);
   load();
@@ -69,9 +83,12 @@ function makeFileStore(dbPath) {
     async init() {},
     async findByEmail(e) { return clone(db.users.find((u) => u.email === e)); },
     async findById(id) { return clone(db.users.find((u) => u.id === id)); },
-    async create({ email, passHash, nickname }) { const u = { id: db.nextId++, email, passHash, nickname, result: null, createdAt: Date.now() }; db.users.push(u); save(); return clone(u); },
+    async create({ email, passHash, nickname }) { const u = { id: db.nextId++, email, passHash, nickname, result: null, premium: false, createdAt: Date.now() }; db.users.push(u); save(); return clone(u); },
     async updateNickname(id, nickname) { const u = db.users.find((x) => x.id === id); if (!u) return null; u.nickname = nickname; save(); return clone(u); },
     async updateResult(id, result) { const u = db.users.find((x) => x.id === id); if (!u) return null; u.result = result || null; save(); return clone(u); },
+    async setPremium(id, val) { const u = db.users.find((x) => x.id === id); if (!u) return null; u.premium = !!val; save(); return clone(u); },
+    async recordPayment(p) { if (!db.payments.some((x) => x.paymentKey === p.paymentKey)) { db.payments.push({ ...p, at: Date.now() }); save(); } },
+    async getPayment(pk) { return db.payments.find((x) => x.paymentKey === pk) || null; },
     async remove(id) { db.users = db.users.filter((x) => x.id !== id); save(); },
     async count() { return db.users.length; },
   };
@@ -83,7 +100,7 @@ const app = express();
 app.set("trust proxy", 1);      // Render 등 프록시 뒤에서 req.secure 정상 동작
 app.use(express.json());
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((e) => { console.error(e); res.status(500).json({ ok: false, error: "서버 오류가 발생했어요." }); });
-const publicUser = (u) => ({ id: u.id, email: u.email, nickname: u.nickname, result: u.result || null });
+const publicUser = (u) => ({ id: u.id, email: u.email, nickname: u.nickname, result: u.result || null, premium: !!u.premium });
 
 /* ---------- 비밀번호 해시 (scrypt) ---------- */
 function hashPw(pw) { const salt = crypto.randomBytes(16).toString("hex"); return salt + ":" + crypto.scryptSync(pw, salt, 64).toString("hex"); }
@@ -172,6 +189,13 @@ app.delete("/api/auth/account", requireAuth, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// 모의 결제(토스 키 미설정 데모 모드에서만) — 프리미엄 바로 부여
+app.post("/api/me/premium", requireAuth, ah(async (req, res) => {
+  if (SECRET_KEY) return res.status(400).json({ ok: false, error: "결제(토스)를 통해서만 구매할 수 있어요." });
+  const u = await store.setPremium(req.user.id, true);
+  res.json({ ok: true, user: publicUser(u) });
+}));
+
 /* ============================================================ 결제(기존) ============================================================ */
 app.get("/api/config", (req, res) => res.json({ tossClientKey: CLIENT_KEY, price: PRICE }));
 
@@ -190,7 +214,16 @@ app.post("/api/confirm", async (req, res) => {
       body: JSON.stringify({ paymentKey, orderId, amount: Number(amount) }),
     });
     const data = await r.json().catch(() => ({}));
-    if (r.ok) return res.json({ ok: true, method: data.method, approvedAt: data.approvedAt, totalAmount: data.totalAmount });
+    if (r.ok) {
+      // 토스가 승인한 실제 결제 금액을 서버에서 재검증(금액 변조 방지)
+      if (Number(data.totalAmount) !== PRICE) return res.status(400).json({ ok: false, error: "결제 금액이 올바르지 않아요." });
+      const u = await currentUser(req);
+      // 멱등: 같은 paymentKey는 한 번만 기록(중복 승인 방지)
+      const already = await store.getPayment(paymentKey);
+      if (!already) await store.recordPayment({ orderId, paymentKey, amount: Number(data.totalAmount), userId: u ? u.id : null });
+      if (u) await store.setPremium(u.id, true);   // 결제 성공 → 프리미엄 계정 귀속
+      return res.json({ ok: true, premium: true, approvedAt: data.approvedAt, totalAmount: data.totalAmount });
+    }
     return res.status(r.status).json({ ok: false, error: data.message || "결제 승인에 실패했어요.", code: data.code });
   } catch (e) {
     return res.status(502).json({ ok: false, error: "결제 서버 연결에 실패했어요." });
