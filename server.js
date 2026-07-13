@@ -15,6 +15,8 @@ const PRICE = 3900;
 const PORTONE_STORE_ID = process.env.PORTONE_STORE_ID || "";
 const PORTONE_CHANNEL_KEY = process.env.PORTONE_CHANNEL_KEY || "";
 const PORTONE_API_SECRET = process.env.PORTONE_API_SECRET || "";
+// 결제창 없이 프리미엄을 부여하는 모의 결제. 로컬 개발에서만 명시적으로 켠다.
+const MOCK_PAYMENT = process.env.ALLOW_MOCK_PAYMENT === "1";
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 const DATABASE_URL = process.env.DATABASE_URL || "";
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, "data", "users.json");
@@ -193,10 +195,12 @@ app.delete("/api/auth/account", requireAuth, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// 모의 결제(포트원 키 미설정 데모 모드에서만) — 프리미엄 바로 부여.
-// 운영에는 PORTONE_API_SECRET 이 있으므로 이 경로가 막힌다(무단 부여 방지).
+// 모의 결제 — 결제창 없이 프리미엄을 바로 부여한다(로컬 개발 전용).
+// ALLOW_MOCK_PAYMENT=1 을 명시적으로 켠 경우에만 열린다. 키를 깜빡한 배포에서
+// 이 경로가 조용히 살아나 무료로 프리미엄이 풀리는 사고를 막기 위함.
+// 포트원 '테스트 채널'로 검증할 때는 이 경로가 아니라 실제 결제 플로우를 그대로 탄다.
 app.post("/api/me/premium", requireAuth, ah(async (req, res) => {
-  if (PORTONE_API_SECRET) return res.status(400).json({ ok: false, error: "결제를 통해서만 이용할 수 있어요." });
+  if (!MOCK_PAYMENT) return res.status(400).json({ ok: false, error: "결제를 통해서만 이용할 수 있어요." });
   const u = await store.setPremium(req.user.id, true);
   res.json({ ok: true, user: publicUser(u) });
 }));
@@ -247,6 +251,7 @@ app.use(express.static(path.join(__dirname, "public")));
 store.init()
   .then(async () => {
     const n = await store.count().catch(() => "?");
-    app.listen(PORT, () => console.log(`알바 메이트 실행: http://localhost:${PORT} · 저장소 ${store.kind} · 계정 ${n}명 · 결제(포트원) ${PORTONE_API_SECRET ? "ON" : "OFF(모의결제)"}`));
+    const pay = PORTONE_API_SECRET ? "포트원 ON" : (MOCK_PAYMENT ? "모의결제(개발)" : "OFF · 결제 불가(키 미설정)");
+    app.listen(PORT, () => console.log(`알바 메이트 실행: http://localhost:${PORT} · 저장소 ${store.kind} · 계정 ${n}명 · 결제 ${pay}`));
   })
   .catch((e) => { console.error("저장소 초기화 실패:", e); process.exit(1); });
