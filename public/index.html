@@ -79,6 +79,9 @@
   .sp-bar > i { display: block; width: 40%; height: 100%; border-radius: 99px;
                 background: linear-gradient(90deg, #1BB055, #5FD08A); animation: sp-slide 1.15s ease-in-out infinite; }
   @keyframes sp-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(330%); } }
+  .sp-tip { width: 100%; max-width: 300px; padding: 0 24px; margin-top: 14px; box-sizing: border-box;
+            text-align: center; font-size: 12.5px; line-height: 1.55; word-break: keep-all;
+            color: #8b9a91; animation: sp-up .5s ease-out .55s both; }
   @media (prefers-reduced-motion: reduce) {
     #splash *, #splash *::before, #splash *::after { animation: none !important; }
   }
@@ -90,8 +93,25 @@
   <div class="sp-title">알바 메이트</div>
   <div class="sp-sub">알바가 처음인 사람을 위한 안내서</div>
   <div class="sp-bar"><i></i></div>
+  <div class="sp-tip" id="sp-tip"></div>
 </div>
 <div id="root"></div>
+
+<script>
+  /* 로딩 중에도 뭔가 하나는 배워 가도록 — 앱의 가이드에서 뽑은 한 줄 팁 */
+  (function () {
+    const TIPS = [
+      "근로계약서는 쓰고 끝이 아니라 1부 받아서 보관하세요",
+      "주 15시간 이상 개근하면 주휴수당을 받을 수 있어요",
+      "급여는 계좌이체로 — 이체내역이 곧 증거예요",
+      "일 시작 전에 돈을 요구하는 곳은 그냥 나오세요",
+      "밤 10시~오전 6시 근무는 1.5배로 계산돼야 해요",
+      "2026년 최저시급은 10,320원이에요",
+    ];
+    const el = document.getElementById("sp-tip");
+    if (el) el.textContent = "💡 " + TIPS[Math.floor(Math.random() * TIPS.length)];
+  })();
+</script>
 
 <script type="text/babel">
 const { useState, useMemo, useEffect, useRef } = React;
@@ -1138,7 +1158,7 @@ const CHECKLIST = [
 ];
 
 /* ============================================================
-   알바 MBTI — 4축 × 12문항
+   알바 MBTI — 4축 × 7문항 (총 28문항)
    축0 E(응대·사람) / I(독립·혼자)
    축1 D(활동·몸)   / C(차분·정적)
    축2 F(유연·단기) / S(고정·꾸준)
@@ -1322,7 +1342,7 @@ function Home({ onGuide, onMbti, onNav, onCat, onCalc, onAccount, user, prev }) 
           className="w-full text-left bg-brand rounded-2xl p-4 flex items-center gap-3 press shadow-soft">
           <div className="w-11 h-11 bg-white/20 rounded-xl grid place-items-center text-2xl shrink-0">🧬</div>
           <div className="flex-1 min-w-0 text-white">
-            <div className="text-[11px] font-semibold text-white/80">알바 성향 테스트 · 12문항</div>
+            <div className="text-[11px] font-semibold text-white/80">알바 성향 테스트 · {QUIZ.length}문항</div>
             <div className="font-bold text-[17px] leading-tight">내 알바 MBTI는?</div>
             <div className="text-[12px] text-white/85 mt-0.5 truncate">
               {prev
@@ -2723,11 +2743,11 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 
-// 앱이 그려지면 스플래시를 걷어낸다(최소 700ms 노출 → 깜빡임 방지)
+// 앱이 그려지면 스플래시를 걷어낸다(최소 1.1초 노출 → 깜빡임 방지 + 팁을 읽을 시간)
 requestAnimationFrame(() => {
   const el = document.getElementById("splash");
   if (!el) return;
-  const wait = Math.max(0, 700 - performance.now());
+  const wait = Math.max(0, 1100 - performance.now());
   setTimeout(() => {
     el.classList.add("hide");
     setTimeout(() => el.remove(), 500);
