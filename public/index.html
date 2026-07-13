@@ -2657,6 +2657,71 @@ function AccountScreen({ user, onAuthed, onUser, onLogout, onBack }) {
   );
 }
 
+/* ============================================================ 초기화면(로그인 게이트) ============================================================ */
+/* 로그인하지 않으면 앱 안으로 들어올 수 없다. 앱을 처음 열면 이 화면이 뜬다. */
+function AuthGate({ onAuthed }) {
+  const [mode, setMode] = useState("login");   // login | signup
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [nick, setNick] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const submit = async () => {
+    if (busy) return;
+    setErr(""); setBusy(true);
+    const url = mode === "signup" ? "/api/auth/signup" : "/api/auth/login";
+    const body = mode === "signup" ? { email, password: pw, nickname: nick } : { email, password: pw };
+    const d = await api("POST", url, body);
+    setBusy(false);
+    if (d.ok && d.user) onAuthed(d.user);
+    else setErr(d.error || "문제가 발생했어요.");
+  };
+  const swap = (m) => { setMode(m); setErr(""); };
+
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      {/* 브랜드 히어로 */}
+      <div className="bg-brand text-white px-7 pt-14 pb-9 rounded-b-[32px]">
+        <img src="/icons/icon-192.png?v=5" alt="" className="w-14 h-14 rounded-2xl shadow-soft" />
+        <h1 className="text-[27px] font-extrabold mt-4 leading-tight">알바가 처음이라면,<br/>여기서 시작하세요</h1>
+        <div className="mt-4 space-y-1.5 text-[14px] text-white/90">
+          <div>🧬 28문항 알바 MBTI — 나에게 맞는 알바 찾기</div>
+          <div>🧮 주휴수당까지 더한 월급 계산기</div>
+          <div>📕 계약서·임금체불 심화 가이드 {PREMIUM.length}편</div>
+        </div>
+      </div>
+
+      {/* 로그인 / 회원가입 */}
+      <div className="px-5 pt-7 flex-1">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+          {[["login", "로그인"], ["signup", "회원가입"]].map(([m, label]) => (
+            <button key={m} onClick={() => swap(m)}
+              className={"flex-1 py-2.5 rounded-lg text-[15px] font-bold transition " +
+                (mode === m ? "bg-white text-brand shadow-card" : "text-gray-500")}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-5 space-y-3">
+          <AuthField label="이메일" type="email" value={email} set={setEmail} placeholder="you@example.com" autoComplete="email" onEnter={submit} />
+          <AuthField label="비밀번호" type="password" value={pw} set={setPw} placeholder="6자 이상" autoComplete={mode === "signup" ? "new-password" : "current-password"} onEnter={submit} />
+          {mode === "signup" && <AuthField label="닉네임 (선택)" type="text" value={nick} set={setNick} placeholder="비우면 이메일 앞부분으로" autoComplete="nickname" onEnter={submit} />}
+          {err && <p className="text-[13px] text-red-500 font-medium">{err}</p>}
+          <button disabled={busy} onClick={submit} className="w-full bg-brand disabled:bg-gray-300 text-white font-bold py-3.5 rounded-xl press text-[16px]">
+            {busy ? "처리 중…" : (mode === "signup" ? "가입하고 시작하기" : "로그인")}
+          </button>
+        </div>
+
+        <p className="mt-5 text-[12px] text-gray-400 leading-relaxed text-center">
+          이용료는 없어요. 계정을 만들면 알바 MBTI 결과가 저장되어<br/>다른 기기에서도 이어서 볼 수 있어요.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 const HOME_NAV = { tab: "home", overlay: null, guide: null, detailFrom: "home", typesCat: "all" };
 
 function App() {
@@ -2667,6 +2732,7 @@ function App() {
   const [detailFrom, setDetailFrom] = useState("home"); // 탭 key 또는 "result"
   const [typesCat, setTypesCat] = useState("all");
   const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);  // /api/auth/me 확인 완료 여부
 
   /* ---------- 뒤로가기(모바일 하드웨어 버튼 / 브라우저) ----------
      화면 전환마다 history 항목을 쌓고, popstate에서 그 화면 상태로 되돌린다.
@@ -2699,17 +2765,22 @@ function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // 세션 복원 + 계정에 저장된 결과 동기화
+  // 세션 복원 + 계정에 저장된 결과 동기화.
+  // 이게 끝나기 전에 화면을 그리면 로그인된 사용자에게도 로그인 화면이 한 번 번쩍인다.
+  // 그래서 확인이 끝날 때까지는 스플래시를 유지하고(app-ready 이벤트로 알린다) 아무것도 그리지 않는다.
   useEffect(() => {
     api("GET", "/api/auth/me").then((d) => {
       if (d && d.user) {
         setUser(d.user);
         if (d.user.result && d.user.result.code) { setResult(d.user.result); LS.set("result", d.user.result); }
       }
+      setAuthReady(true);
+      window.dispatchEvent(new Event("app-ready"));
     });
   }, []);
   const onAuthed = (u) => { setUser(u); if (u.result && u.result.code) { setResult(u.result); LS.set("result", u.result); } };
-  const onLogout = () => { setUser(null); go({ overlay: null, tab: "home" }); };
+  // 로그아웃하면 다시 초기화면(로그인 게이트)으로 떨어진다. 앱 안의 상태도 비운다.
+  const onLogout = () => { setUser(null); setResult(null); LS.set("result", null); go({ overlay: null, tab: "home" }); };
 
   const goTab = (k) => go({ overlay: null, tab: k });
   const goCat = (cat) => go({ overlay: null, tab: "types", typesCat: cat });
@@ -2719,6 +2790,11 @@ function App() {
     const r = computeResult(letters); setResult(r); LS.set("result", r); go({ overlay: "result" });
     if (user) api("PUT", "/api/me/result", { result: r }).then((d) => { if (d && d.user) setUser(d.user); });
   };
+  // 세션 확인 전에는 스플래시가 덮고 있다 — 아무것도 그리지 않는다.
+  if (!authReady) return null;
+  // 로그인해야 앱 안으로 들어올 수 있다.
+  if (!user) return <div className="phone noscroll"><AuthGate onAuthed={onAuthed} /></div>;
+
   return (
     <div className="phone noscroll">
       {/* 몰입 화면(탭바 숨김) */}
@@ -2743,16 +2819,25 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 
-// 앱이 그려지면 스플래시를 걷어낸다(최소 1.1초 노출 → 깜빡임 방지 + 팁을 읽을 시간)
-requestAnimationFrame(() => {
-  const el = document.getElementById("splash");
-  if (!el) return;
-  const wait = Math.max(0, 1100 - performance.now());
-  setTimeout(() => {
-    el.classList.add("hide");
-    setTimeout(() => el.remove(), 500);
-  }, wait);
-});
+// 스플래시는 세션 확인(app-ready)이 끝나야 걷는다. 그 전에 걷으면 이미 로그인한
+// 사용자에게도 로그인 화면이 한 번 번쩍인다. 최소 1.1초는 유지(깜빡임 방지 + 팁 읽을 시간),
+// 네트워크가 죽어 app-ready 가 영영 안 오면 6초 뒤 강제로 걷는다.
+(function () {
+  let done = false;
+  const hide = () => {
+    if (done) return;
+    done = true;
+    const el = document.getElementById("splash");
+    if (!el) return;
+    const wait = Math.max(0, 1100 - performance.now());
+    setTimeout(() => {
+      el.classList.add("hide");
+      setTimeout(() => el.remove(), 500);
+    }, wait);
+  };
+  window.addEventListener("app-ready", hide);
+  setTimeout(hide, 6000);
+})();
 </script>
 <script>
   // 서비스워커 등록(설치형 PWA). HTTPS 또는 localhost에서만 동작.
