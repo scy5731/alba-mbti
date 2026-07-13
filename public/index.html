@@ -4,21 +4,21 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>알바 메이트 — 알바 초보를 위한 안내서</title>
-<meta name="description" content="알바 유형 43종을 직종별로 안내하고, 근로계약·최저시급·면접·급여 등 꼭 알아둘 실전 가이드까지. 28문항 알바 MBTI로 나에게 맞는 알바도 찾아드려요. 가입도 결제도 없이 전부 무료." />
+<meta name="description" content="알바 유형 43종을 직종별로 안내하고, 근로계약·최저시급·면접·급여 등 꼭 알아둘 실전 가이드까지. 28문항 알바 MBTI로 나에게 맞는 알바도 찾아드려요. 알바가 처음인 사람을 위한 안내서." />
 <!-- SEO / 링크 미리보기 (카카오톡·페북·트위터 공유 시 카드) -->
 <link rel="canonical" href="https://albamates.com/" />
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="알바 메이트" />
 <meta property="og:url" content="https://albamates.com/" />
 <meta property="og:title" content="알바 메이트 — 알바 초보를 위한 안내서" />
-<meta property="og:description" content="알바 유형 43종 직종별 안내 + 근로계약·최저시급·면접·급여 실전 가이드. 28문항 알바 MBTI까지 — 가입도 결제도 없이 전부 무료." />
+<meta property="og:description" content="알바 유형 43종 직종별 안내 + 근로계약·최저시급·면접·급여 실전 가이드. 28문항 알바 MBTI로 나에게 맞는 알바 찾기." />
 <meta property="og:image" content="https://albamates.com/og-image.png?v=1" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta property="og:locale" content="ko_KR" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="알바 메이트 — 알바 초보를 위한 안내서" />
-<meta name="twitter:description" content="알바 유형 43종 직종별 안내 + 근로계약·최저시급·면접·급여 실전 가이드. 28문항 알바 MBTI까지 — 가입도 결제도 없이 전부 무료." />
+<meta name="twitter:description" content="알바 유형 43종 직종별 안내 + 근로계약·최저시급·면접·급여 실전 가이드. 28문항 알바 MBTI로 나에게 맞는 알바 찾기." />
 <meta name="twitter:image" content="https://albamates.com/og-image.png?v=1" />
 <!-- PWA -->
 <link rel="manifest" href="/manifest.webmanifest" />
@@ -666,8 +666,9 @@ const GLOSSARY = [
 ];
 
 /* ============================================================
-   프리미엄 가이드(유료) — 무료보다 훨씬 깊고 상세한 심화 가이드.
-   결제(프리미엄) 후에만 열람. sections[{h, body?, points?}]
+   심화 가이드 — 기본 상식(BASICS)보다 훨씬 깊고 상세한 편들.
+   변수명 PREMIUM 은 유료 시절의 잔재다(지금은 로그인만 하면 전부 열린다).
+   sections[{h, body?, points?}]
    ============================================================ */
 const PREMIUM = [
   /* ---------------------------------------------------------------- 1. 주휴수당 */
@@ -1484,17 +1485,17 @@ function TypesTab({ onGuide, initial }) {
 }
 
 /* 가이드 탭 — 심화 가이드 + 기본 상식 + 실전 꿀팁 + 용어 사전.
-   가이드·유형·알바 MBTI 결과까지 전부 무료다. */
+   로그인해야 앱 안으로 들어올 수 있다(AuthGate). */
 function GuideTab({ onGuide }) {
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
       <PageHead tag="알바 가이드" title="알바 가이드" sub="계약·급여·응대까지, 초보가 알아야 할 모든 것" />
 
-      {/* 심화 가이드 — 전면 무료 공개 */}
+      {/* 심화 가이드 */}
       <div className="bg-white px-5 py-5 mt-2">
         <div className="flex items-center gap-2">
           <h2 className="text-lg font-bold text-gray-900">📕 심화 가이드</h2>
-          <span className="text-[11px] font-bold text-white bg-brand px-2 py-0.5 rounded-full">무료</span>
+          <span className="text-[11px] font-bold text-white bg-brand px-2 py-0.5 rounded-full">{PREMIUM.length}편</span>
         </div>
         <p className="text-xs text-gray-400 mt-0.5">계약서 독소조항부터 임금체불 신고까지, 깊고 상세하게 {PREMIUM.length}편</p>
         <div className="mt-3 divide-y divide-gray-100">
@@ -1643,7 +1644,7 @@ function MbtiIntro({ onStart, prev }) {
           16가지 유형 중 내 유형과,<br/>잘 맞는 알바 추천·가이드까지.
         </p>
         <p className="text-white/70 text-xs mt-3">
-          {QUIZ.length}문항 · 3분 · 결과 리포트까지 전부 무료
+          {QUIZ.length}문항 · 3분 · 16유형 중 내 유형과 추천 알바 TOP 3
         </p>
       </div>
 
@@ -2715,7 +2716,7 @@ function AuthGate({ onAuthed }) {
         </div>
 
         <p className="mt-5 text-[12px] text-gray-400 leading-relaxed text-center">
-          이용료는 없어요. 계정을 만들면 알바 MBTI 결과가 저장되어<br/>다른 기기에서도 이어서 볼 수 있어요.
+          계정을 만들면 알바 MBTI 결과가 저장되어<br/>다른 기기에서도 이어서 볼 수 있어요.
         </p>
       </div>
     </div>
