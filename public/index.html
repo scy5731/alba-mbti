@@ -8,8 +8,8 @@
 <!-- PWA -->
 <link rel="manifest" href="/manifest.webmanifest" />
 <meta name="theme-color" content="#ffffff" />
-<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=3" />
-<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=3" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png?v=4" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=4" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -20,7 +20,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = { theme: { extend: {
-    colors: { brand:'#2E7CF6', brandDark:'#1E63D6', brandLt:'#EAF2FE', ink:'#222222' },
+    colors: { brand:'#16A34A', brandDark:'#15803D', brandLt:'#E7F6EC', ink:'#222222' },
     boxShadow: { card:'0 1px 3px rgba(0,0,0,.07)', soft:'0 4px 16px rgba(0,0,0,.08)' },
   }}};
 </script>
@@ -1991,7 +1991,7 @@ function PmLaw({ article, text }) {
 function PmCallout({ kind, title, text }) {
   const warn = kind === "warn";
   return (
-    <div className={"rounded-2xl px-4 py-3.5 border " + (warn ? "bg-red-50/70 border-red-100" : "bg-brandLt border-blue-100")}>
+    <div className={"rounded-2xl px-4 py-3.5 border " + (warn ? "bg-red-50/70 border-red-100" : "bg-brandLt border-green-100")}>
       <div className="flex items-center gap-1.5">
         <span className="text-[13px]">{warn ? "⚠️" : "💡"}</span>
         {title && <span className={"text-[13px] font-extrabold " + (warn ? "text-red-600" : "text-brand")}>{title}</span>}
@@ -2032,7 +2032,7 @@ function PmScript({ items }) {
         <div key={i} className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
           <div className="px-4 py-2.5 bg-gray-50 flex items-center justify-between gap-2">
             <span className="text-[12.5px] font-extrabold text-gray-700">{s.sit}</span>
-            <button onClick={() => copy(s.say, i)} className="shrink-0 text-[11px] font-bold text-brand bg-white border border-blue-100 px-2 py-1 rounded-lg press">
+            <button onClick={() => copy(s.say, i)} className="shrink-0 text-[11px] font-bold text-brand bg-white border border-green-100 px-2 py-1 rounded-lg press">
               {copied === i ? "복사됨 ✓" : "복사"}
             </button>
           </div>
@@ -2081,7 +2081,7 @@ function PmCheck({ items, done }) {
         {items.map((it, i) => {
           const checked = on.includes(i);
           return (
-            <button key={i} onClick={() => toggle(i)} className={"w-full flex items-start gap-2.5 text-left rounded-2xl px-3.5 py-3 border press transition " + (checked ? "bg-brandLt border-blue-100" : "bg-white border-gray-100")}>
+            <button key={i} onClick={() => toggle(i)} className={"w-full flex items-start gap-2.5 text-left rounded-2xl px-3.5 py-3 border press transition " + (checked ? "bg-brandLt border-green-100" : "bg-white border-gray-100")}>
               <span className={"shrink-0 w-5 h-5 rounded-md grid place-items-center text-[11px] font-bold mt-0.5 " + (checked ? "bg-brand text-white" : "bg-gray-100 text-transparent")}>✓</span>
               <span className={"text-[14px] leading-relaxed " + (checked ? "text-gray-900 font-semibold" : "text-gray-600")}>{it}</span>
             </button>

@@ -17,3 +17,7 @@ data/
 caddy_data/
 caddy_config/
 .DS_Store
+
+# 카드뉴스 빌드 산출물 — 폰트(2.3MB)와 중간 HTML은 커밋 제외
+promo/fonts/
+promo/html/
