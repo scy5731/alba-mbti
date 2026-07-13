@@ -1,6 +1,6 @@
 /* 알바 MBTI 서비스워커 — 앱셸 캐싱 + 설치형(PWA) 지원.
    결제(POST /api/*)와 토스/CDN(교차출처)은 절대 가로채지 않음. */
-const CACHE = "alba-mate-v4";
+const CACHE = "alba-mate-v5";
 const SHELL = [
   "/",
   "/index.html",

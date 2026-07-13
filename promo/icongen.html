@@ -1,0 +1,53 @@
+<!-- 원본 로고 → PWA 아이콘 세트 생성.
+     원본의 흰 여백을 잘라내 로고 바운딩 박스를 구한 뒤, 지정한 비율(fill)로 중앙 배치한다.
+     maskable은 OS가 원형/둥근사각으로 잘라내므로 fill을 낮춰 안전영역 안에 로고를 넣는다.
+     사용: icongen.html?src=<png>&size=512&fill=0.78&bg=%23ffffff -->
+<meta charset="utf-8">
+<style>html,body{margin:0;padding:0}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script>
+const q = new URLSearchParams(location.search);
+const SRC = q.get("src");
+const SIZE = +q.get("size");
+const FILL = +(q.get("fill") || 0.78);   // 로고가 캔버스에서 차지할 비율
+const BG = q.get("bg") || "#ffffff";
+
+const img = new Image();
+img.onload = () => {
+  // 1) 원본을 임시 캔버스에 올려 흰 배경이 아닌 영역(로고)의 바운딩 박스를 찾는다
+  const t = document.createElement("canvas");
+  t.width = img.width; t.height = img.height;
+  const tx = t.getContext("2d", { willReadFrequently: true });
+  tx.drawImage(img, 0, 0);
+  const p = tx.getImageData(0, 0, t.width, t.height).data;
+
+  let x0 = t.width, y0 = t.height, x1 = -1, y1 = -1;
+  for (let y = 0; y < t.height; y++) {
+    for (let x = 0; x < t.width; x++) {
+      const i = (y * t.width + x) * 4;
+      const a = p[i + 3];
+      // 투명하거나, 흰색에 가까우면 배경으로 본다(임계값 18)
+      const isBg = a < 8 || (p[i] > 237 && p[i + 1] > 237 && p[i + 2] > 237);
+      if (isBg) continue;
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  }
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+
+  // 2) 정사각 캔버스에 배경을 깔고, 로고를 FILL 비율로 중앙 배치
+  const cv = document.getElementById("c");
+  cv.width = SIZE; cv.height = SIZE;
+  const ctx = cv.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
+  const scale = (SIZE * FILL) / Math.max(bw, bh);
+  const dw = bw * scale, dh = bh * scale;
+  ctx.drawImage(img, x0, y0, bw, bh, (SIZE - dw) / 2, (SIZE - dh) / 2, dw, dh);
+
+  document.title = `done ${bw}x${bh}`;
+};
+img.src = SRC;
+</script>
