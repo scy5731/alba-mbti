@@ -44,7 +44,7 @@
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useMemo, useEffect } = React;
+const { useState, useMemo, useEffect, useRef } = React;
 async function api(method, url, body) {
   const opt = { method, headers: {}, credentials: "same-origin" };
   if (body) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
@@ -2689,6 +2689,8 @@ function PremiumScreen({ user, clientKey, onUser, onLogin, onPurchased, onBack }
   );
 }
 
+const HOME_NAV = { tab: "home", overlay: null, guide: null, detailFrom: "home", typesCat: "all" };
+
 function App() {
   const [tab, setTab] = useState("home");          // home | types | guideList | calc | faq
   const [overlay, setOverlay] = useState(null);     // null | quiz | result | detail (탭바 숨김)
@@ -2699,11 +2701,43 @@ function App() {
   const [user, setUser] = useState(null);
   const [clientKey, setClientKey] = useState("");
 
+  /* ---------- 뒤로가기(모바일 하드웨어 버튼 / 브라우저) ----------
+     화면 전환마다 history 항목을 쌓고, popstate에서 그 화면 상태로 되돌린다.
+     이게 없으면 뒤로가기가 앱을 그대로 나가버린다.
+     화면 상태(nav)는 전부 직렬화 가능한 값이라 history.state에 그대로 넣는다. */
+  const navRef = useRef(HOME_NAV);
+  const applyNav = (s) => {
+    setTab(s.tab); setOverlay(s.overlay); setGuide(s.guide);
+    setDetailFrom(s.detailFrom); setTypesCat(s.typesCat);
+    window.scrollTo(0, 0);
+  };
+  // 화면 이동 — 바뀌는 값만 넘기면 나머지는 현재 화면에서 이어받는다
+  const go = (patch) => {
+    const next = { ...navRef.current, ...patch };
+    navRef.current = next;
+    window.history.pushState({ nav: next }, "");
+    applyNav(next);
+  };
+  // 앱 안의 ‹ 버튼도 하드웨어 뒤로가기와 똑같이 동작시킨다(히스토리가 쌓이지 않도록)
+  const back = () => window.history.back();
+
+  useEffect(() => {
+    window.history.replaceState({ nav: navRef.current }, "");
+    const onPop = (e) => {
+      const s = (e.state && e.state.nav) || HOME_NAV;
+      navRef.current = s;
+      applyNav(s);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   // 세션 복원 + 결과 동기화 + 토스 결제 리다이렉트 처리
   useEffect(() => {
     api("GET", "/api/config").then((d) => setClientKey((d && d.tossClientKey) || ""));
     const params = new URLSearchParams(window.location.search);
-    const clean = () => window.history.replaceState({}, "", window.location.pathname);
+    // 쿼리는 지우되 화면 상태(nav)는 유지 — 안 그러면 뒤로가기 복원이 깨진다
+    const clean = () => window.history.replaceState({ nav: navRef.current }, "", window.location.pathname);
     if (params.get("tossfail")) { clean(); alert("결제가 취소되었거나 실패했어요."); }
     const paymentKey = params.get("paymentKey");
     api("GET", "/api/auth/me").then(async (d) => {
@@ -2717,41 +2751,35 @@ function App() {
         if (c.ok) {
           const me = await api("GET", "/api/auth/me");
           if (me.user) setUser(me.user);
-          setOverlay(null); setTab("guideList"); alert("프리미엄이 활성화됐어요! 🎉");
+          go({ overlay: null, tab: "guideList" }); alert("프리미엄이 활성화됐어요! 🎉");
         } else alert("결제 확인에 실패했어요. " + (c.error || ""));
-        window.scrollTo(0, 0);
       }
     });
   }, []);
   const onAuthed = (u) => { setUser(u); if (u.result && u.result.code) { setResult(u.result); LS.set("result", u.result); } };
-  const onLogout = () => { setUser(null); setOverlay(null); setTab("home"); window.scrollTo(0, 0); };
+  const onLogout = () => { setUser(null); go({ overlay: null, tab: "home" }); };
 
-  const goTab = (k) => { setOverlay(null); setTab(k); window.scrollTo(0, 0); };
-  const goCat = (cat) => { setTypesCat(cat); setOverlay(null); setTab("types"); window.scrollTo(0, 0); };
-  const openGuide = (t, from) => { setGuide(t); setDetailFrom(from); setOverlay("detail"); window.scrollTo(0, 0); };
-  const start = (prev) => { setOverlay(prev && result ? "result" : "quiz"); window.scrollTo(0, 0); };
+  const goTab = (k) => go({ overlay: null, tab: k });
+  const goCat = (cat) => go({ overlay: null, tab: "types", typesCat: cat });
+  const openGuide = (t, from) => go({ overlay: "detail", guide: t, detailFrom: from });
+  const start = (prev) => go({ overlay: prev && result ? "result" : "quiz" });
   const done = (letters) => {
-    const r = computeResult(letters); setResult(r); LS.set("result", r); setOverlay("result"); window.scrollTo(0, 0);
+    const r = computeResult(letters); setResult(r); LS.set("result", r); go({ overlay: "result" });
     if (user) api("PUT", "/api/me/result", { result: r }).then((d) => { if (d && d.user) setUser(d.user); });
-  };
-  const detailBack = () => {
-    if (detailFrom === "result") setOverlay("result");
-    else { setOverlay(null); setTab(detailFrom); }
-    window.scrollTo(0, 0);
   };
   return (
     <div className="phone noscroll">
       {/* 몰입 화면(탭바 숨김) */}
-      {overlay === "quiz" && <Quiz onDone={done} onBack={() => { setOverlay(null); setTab("mbti"); }} />}
-      {overlay === "result" && result && <Result result={result} onRetry={() => setOverlay("quiz")} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")} />}
-      {overlay === "detail" && guide && <Guide target={guide} onBack={detailBack} backLabel={detailFrom === "result" ? "‹ 결과로" : "‹ 목록으로"} />}
-      {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={() => goTab("home")} />}
-      {overlay === "premium" && <PremiumScreen user={user} clientKey={clientKey} onUser={setUser} onLogin={() => { setOverlay("account"); window.scrollTo(0, 0); }} onPurchased={() => { setOverlay(null); setTab("guideList"); window.scrollTo(0, 0); alert("프리미엄이 활성화됐어요! 🎉"); }} onBack={() => goTab("guideList")} />}
+      {overlay === "quiz" && <Quiz onDone={done} onBack={back} />}
+      {overlay === "result" && result && <Result result={result} onRetry={() => go({ overlay: "quiz" })} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")} />}
+      {overlay === "detail" && guide && <Guide target={guide} onBack={back} backLabel={detailFrom === "result" ? "‹ 결과로" : "‹ 목록으로"} />}
+      {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={back} />}
+      {overlay === "premium" && <PremiumScreen user={user} clientKey={clientKey} onUser={setUser} onLogin={() => go({ overlay: "account" })} onPurchased={() => { go({ overlay: null, tab: "guideList" }); alert("프리미엄이 활성화됐어요! 🎉"); }} onBack={back} />}
 
       {/* 탭 콘텐츠 */}
-      {!overlay && tab === "home" && <Home onGuide={(t) => openGuide(t, "home")} onMbti={() => goTab("mbti")} onNav={goTab} onCat={goCat} onCalc={() => goTab("calc")} onAccount={() => { setOverlay("account"); window.scrollTo(0, 0); }} user={user} prev={result} />}
+      {!overlay && tab === "home" && <Home onGuide={(t) => openGuide(t, "home")} onMbti={() => goTab("mbti")} onNav={goTab} onCat={goCat} onCalc={() => goTab("calc")} onAccount={() => go({ overlay: "account" })} user={user} prev={result} />}
       {!overlay && tab === "types" && <TypesTab onGuide={(t) => openGuide(t, "types")} initial={typesCat} />}
-      {!overlay && tab === "guideList" && <GuideTab onGuide={(t) => openGuide(t, "guideList")} user={user} onPremium={() => { setOverlay("premium"); window.scrollTo(0, 0); }} />}
+      {!overlay && tab === "guideList" && <GuideTab onGuide={(t) => openGuide(t, "guideList")} user={user} onPremium={() => go({ overlay: "premium" })} />}
       {!overlay && tab === "calc" && <Calc />}
       {!overlay && tab === "mbti" && <MbtiIntro onStart={start} prev={result} />}
       {!overlay && tab === "faq" && <FaqTab />}
