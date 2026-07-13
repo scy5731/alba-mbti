@@ -5,6 +5,21 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>알바 메이트 — 알바 초보를 위한 안내서</title>
 <meta name="description" content="알바 유형 40여 종을 직종별로 안내하고, 근로계약·최저시급·면접·급여 등 꼭 알아둘 실전 가이드까지. 알바가 처음인 사람을 위한 안내서 (+ 알바 MBTI 성향 테스트)" />
+<!-- SEO / 링크 미리보기 (카카오톡·페북·트위터 공유 시 카드) -->
+<link rel="canonical" href="https://albamates.com/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="알바 메이트" />
+<meta property="og:url" content="https://albamates.com/" />
+<meta property="og:title" content="알바 메이트 — 알바 초보를 위한 안내서" />
+<meta property="og:description" content="알바 유형 40여 종 직종별 안내 + 근로계약·최저시급·면접·급여 실전 가이드. 알바 MBTI 성향 테스트도 무료." />
+<meta property="og:image" content="https://albamates.com/og-image.png?v=1" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:locale" content="ko_KR" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="알바 메이트 — 알바 초보를 위한 안내서" />
+<meta name="twitter:description" content="알바 유형 40여 종 직종별 안내 + 근로계약·최저시급·면접·급여 실전 가이드. 알바 MBTI 성향 테스트도 무료." />
+<meta name="twitter:image" content="https://albamates.com/og-image.png?v=1" />
 <!-- PWA -->
 <link rel="manifest" href="/manifest.webmanifest" />
 <meta name="theme-color" content="#ffffff" />
@@ -38,9 +53,44 @@
   .rise { animation: rise .3s ease-out both; }
   @keyframes pop { 0%{transform:scale(.9);opacity:0} 100%{transform:scale(1);opacity:1} }
   .pop { animation: pop .3s cubic-bezier(.2,.8,.2,1.2) both; }
+
+  /* ── 스플래시(앱 준비 화면) ── */
+  #splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 18px;
+            background: radial-gradient(120% 90% at 50% 12%, #E8F8EE 0%, #F7FBF8 45%, #FFFFFF 100%);
+            transition: opacity .45s ease, visibility .45s ease; }
+  #splash.hide { opacity: 0; visibility: hidden; }
+  .sp-badge { position: relative; width: 96px; height: 96px; display: grid; place-items: center; }
+  .sp-badge::before, .sp-badge::after { content: ""; position: absolute; inset: -14px; border-radius: 50%;
+            background: #1BB055; opacity: .13; animation: sp-pulse 2.2s ease-out infinite; }
+  .sp-badge::after { animation-delay: 1.1s; }
+  @keyframes sp-pulse { 0% { transform: scale(.72); opacity: .18; } 70% { opacity: 0; } 100% { transform: scale(1.25); opacity: 0; } }
+  .sp-logo { width: 96px; height: 96px; border-radius: 26px; background: #fff; object-fit: cover;
+             box-shadow: 0 10px 28px rgba(27,176,85,.22), 0 2px 6px rgba(0,0,0,.06);
+             animation: sp-in .55s cubic-bezier(.2,.8,.2,1.2) both, sp-float 3s ease-in-out .55s infinite; }
+  @keyframes sp-in { 0% { transform: scale(.8) translateY(6px); opacity: 0; } 100% { transform: scale(1) translateY(0); opacity: 1; } }
+  @keyframes sp-float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  .sp-title { font-size: 21px; font-weight: 800; color: #17924A; letter-spacing: -.02em;
+              animation: sp-up .5s ease-out .18s both; }
+  .sp-sub { font-size: 13px; color: #7a8a80; margin-top: -10px; animation: sp-up .5s ease-out .3s both; }
+  @keyframes sp-up { 0% { transform: translateY(8px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+  .sp-bar { width: 132px; height: 4px; border-radius: 99px; background: #DCEFE3; overflow: hidden;
+            margin-top: 6px; animation: sp-up .5s ease-out .42s both; }
+  .sp-bar > i { display: block; width: 40%; height: 100%; border-radius: 99px;
+                background: linear-gradient(90deg, #1BB055, #5FD08A); animation: sp-slide 1.15s ease-in-out infinite; }
+  @keyframes sp-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(330%); } }
+  @media (prefers-reduced-motion: reduce) {
+    #splash *, #splash *::before, #splash *::after { animation: none !important; }
+  }
 </style>
 </head>
 <body>
+<div id="splash">
+  <div class="sp-badge"><img class="sp-logo" src="/icons/icon-192.png?v=5" alt="" /></div>
+  <div class="sp-title">알바 메이트</div>
+  <div class="sp-sub">알바가 처음인 사람을 위한 안내서</div>
+  <div class="sp-bar"><i></i></div>
+</div>
 <div id="root"></div>
 
 <script type="text/babel">
@@ -2790,6 +2840,17 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+// 앱이 그려지면 스플래시를 걷어낸다(최소 700ms 노출 → 깜빡임 방지)
+requestAnimationFrame(() => {
+  const el = document.getElementById("splash");
+  if (!el) return;
+  const wait = Math.max(0, 700 - performance.now());
+  setTimeout(() => {
+    el.classList.add("hide");
+    setTimeout(() => el.remove(), 500);
+  }, wait);
+});
 </script>
 <script>
   // 서비스워커 등록(설치형 PWA). HTTPS 또는 localhost에서만 동작.

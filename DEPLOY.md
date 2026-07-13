@@ -37,7 +37,7 @@ git clone <repo> alba_app && cd alba_app
 ## 4. 환경변수(.env) 설정
 `.env`를 열어 **도메인**과 **토스 키**를 채운다. (지금은 테스트키 유지)
 ```
-DOMAIN=alba.example.com
+DOMAIN=albamates.com
 TOSS_CLIENT_KEY=test_ck_...
 TOSS_SECRET_KEY=test_sk_...
 ```
@@ -86,3 +86,55 @@ docker compose up -d --build     # http://localhost:8080
 - 테스트 키는 실도메인/HTTPS에서도 정상 동작하며 실제 청구되지 않는다.
 - 시크릿 키는 서버 컨테이너 안에만 존재하고 프론트로 노출되지 않는다.
 - 인증서·프록시 데이터는 `caddy_data`/`caddy_config` 볼륨에 보존된다.
+
+---
+
+# 커스텀 도메인: albamates.com (Render)
+
+서비스는 Render(`alba-mbti`)에서 돌고 있고, 기본 주소는 `https://alba-mbti.onrender.com`.
+여기에 `albamates.com` 을 붙인다. **코드 변경은 필요 없다** — 앱의 모든 경로가 상대경로이고
+토스 결제 successUrl 도 `location.origin` 기준이라 도메인이 바뀌어도 그대로 동작한다.
+
+## 1) Render 에 도메인 등록
+`render.yaml` 에 이미 선언돼 있다:
+```yaml
+domains:
+  - albamates.com
+  - www.albamates.com
+```
+Blueprint 를 재동기화(Render 대시보드 → Blueprint → Sync)하면 자동 반영된다.
+수동으로 하려면: 대시보드 → 서비스 `alba-mbti` → **Settings → Custom Domains → Add**
+에서 두 도메인을 추가한다.
+
+## 2) 도메인 등록업체(DNS)에 레코드 추가  ← **이 단계는 직접 해야 함**
+Render 가 화면에 표시해 주는 값을 그대로 넣는다. 통상 다음과 같다:
+
+| 호스트 | 타입 | 값 |
+|---|---|---|
+| `@` (albamates.com) | **A** | `216.24.57.1` |
+| `www` | **CNAME** | `alba-mbti.onrender.com` |
+
+- apex(`@`)에 CNAME 은 못 넣는다. 등록업체가 ALIAS/ANAME 을 지원하면 A 대신 그걸 써도 된다.
+- **반드시 Render 대시보드에 표시된 실제 값을 확인할 것.** 위 IP 는 바뀔 수 있다.
+
+## 3) 검증
+DNS 전파(보통 수 분~수 시간) 후:
+```bash
+nslookup albamates.com
+nslookup www.albamates.com
+curl -I https://albamates.com/
+```
+Render 대시보드의 도메인 상태가 **Verified** 가 되면 TLS 인증서(Let's Encrypt)가
+자동 발급된다. `https://albamates.com` 이 200 이면 완료.
+
+## 4) 도메인 붙인 뒤 확인할 것
+- **링크 미리보기**: `public/og-image.png`(1200x630) + index.html 의 og/twitter 메타.
+  카카오톡은 미리보기를 캐시하므로 갱신이 필요하면
+  [카카오 디버거](https://developers.kakao.com/tool/debugger/sharing) 에서 캐시 초기화.
+- **PWA**: manifest 의 `start_url`/`scope` 는 `/` 상대경로라 도메인 변경 영향 없음.
+- **토스 결제**: successUrl 이 `origin` 기반이라 별도 등록 불필요(토스는 도메인 화이트리스트 없음).
+
+## 참고: Caddy(홈/GCP 호스팅) 경로를 쓸 경우
+Render 대신 직접 호스팅한다면 `.env` 의 `DOMAIN=albamates.com` 으로 두고
+`docker compose -f docker-compose.prod.yml up -d --build`. 이때는 DNS A레코드가
+그 서버의 공인 IP 를 가리켜야 한다. (현재 운영은 Render 이므로 이 경로는 미사용)
