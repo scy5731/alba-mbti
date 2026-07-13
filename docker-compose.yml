@@ -6,9 +6,4 @@ services:
     ports:
       # 왼쪽(호스트) 포트만 .env의 HOST_PORT로 바꿀 수 있어요. 기본 8080
       - "${HOST_PORT:-8080}:3000"
-    environment:
-      # 토스페이먼츠 테스트 키를 .env 에 넣으면 실제 토스 테스트 결제가 동작해요.
-      # 없으면 앱은 모의 결제로 폴백합니다.
-      - TOSS_CLIENT_KEY=${TOSS_CLIENT_KEY:-}
-      - TOSS_SECRET_KEY=${TOSS_SECRET_KEY:-}
     restart: unless-stopped

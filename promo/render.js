@@ -16,12 +16,15 @@ const CSS = `
 @font-face{font-family:Pretendard;font-weight:700;font-display:block;src:url("../fonts/Pretendard-Bold.woff2") format("woff2")}
 @font-face{font-family:Pretendard;font-weight:800;font-display:block;src:url("../fonts/Pretendard-ExtraBold.woff2") format("woff2")}
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--brand:#1BB055;--brandDark:#17924A;--brandLt:#E8F8EE;--ink:#222222;--gray:#7A8698}
+/* 기본 테마(브랜드 그린). 세트별로 slides.js 의 theme 로 덮어쓸 수 있다. */
+:root{--brand:#1BB055;--brandDark:#17924A;--brandLt:#E8F8EE;--noteInk:#1F5B36;
+  --grad:linear-gradient(160deg,#3FC85D 0%,#1BB055 45%,#17924A 100%);
+  --ink:#222222;--gray:#7A8698}
 html,body{width:1080px;height:1350px}
 body{font-family:Pretendard,"Malgun Gothic","맑은 고딕",sans-serif;color:var(--ink);
   -webkit-font-smoothing:antialiased;letter-spacing:-0.02em;overflow:hidden}
 .slide{width:1080px;height:1350px;padding:96px 88px;display:flex;flex-direction:column;position:relative;background:#fff}
-.slide.dark{background:linear-gradient(160deg,#3FC85D 0%,#1BB055 45%,#17924A 100%);color:#fff}
+.slide.dark{background:var(--grad);color:#fff}
 
 /* --- 커버 --- */
 .cover-main{margin:auto 0}
@@ -40,7 +43,7 @@ body{font-family:Pretendard,"Malgun Gothic","맑은 고딕",sans-serif;color:var
 .head{font-size:68px;font-weight:800;line-height:1.28;letter-spacing:-0.035em;margin-bottom:56px}
 .body{font-size:52px;font-weight:700;line-height:1.55;letter-spacing:-0.03em}
 .note{margin-top:44px;background:var(--brandLt);border-radius:30px;padding:40px 44px;
-  font-size:36px;font-weight:600;line-height:1.6;color:#1F5B36}
+  font-size:36px;font-weight:600;line-height:1.6;color:var(--noteInk)}
 
 /* --- 리스트 --- */
 .items{display:flex;flex-direction:column;gap:30px}
@@ -134,10 +137,14 @@ function slideHtml(s, i, total) {
   throw new Error("unknown slide type: " + s.type);
 }
 
+// 세트별 색 테마 — slides.js 의 theme:{brand,brandDark,brandLt,noteInk,grad} 를 CSS 변수로 덮어쓴다.
+const themeCss = (t) =>
+  t ? `:root{${Object.entries(t).map(([k, v]) => `--${k}:${v}`).join(";")}}` : "";
+
 let n = 0;
 for (const set of SETS) {
   set.slides.forEach((s, i) => {
-    const html = `<meta charset="utf-8"><style>${CSS}</style>${slideHtml(s, i, set.slides.length)}`;
+    const html = `<meta charset="utf-8"><style>${CSS}${themeCss(set.theme)}</style>${slideHtml(s, i, set.slides.length)}`;
     fs.writeFileSync(path.join(OUT, `${set.slug}-${String(i + 1).padStart(2, "0")}.html`), html);
     n++;
   });

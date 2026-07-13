@@ -1,6 +1,6 @@
 /* 알바 MBTI 서비스워커 — 앱셸 캐싱 + 설치형(PWA) 지원.
-   결제(POST /api/*)와 토스/CDN(교차출처)은 절대 가로채지 않음. */
-const CACHE = "alba-mate-v7";
+   API(POST /api/*)와 CDN(교차출처)은 절대 가로채지 않음. */
+const CACHE = "alba-mate-v8";
 const SHELL = [
   "/",
   "/index.html",
@@ -26,9 +26,9 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
-  if (req.method !== "GET") return;                 // 결제 등 POST는 네트워크 그대로
+  if (req.method !== "GET") return;                 // 로그인 등 POST는 네트워크 그대로
   const url = new URL(req.url);
-  if (url.origin !== location.origin) return;        // CDN·토스 SDK는 건드리지 않음
+  if (url.origin !== location.origin) return;        // CDN 스크립트는 건드리지 않음
   if (url.pathname.startsWith("/api/")) return;      // API 응답은 캐시 금지
 
   // HTML 내비게이션: 네트워크 우선(항상 최신), 오프라인이면 캐시된 앱셸

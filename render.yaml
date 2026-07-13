@@ -14,7 +14,7 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     region: singapore        # 한국에서 가장 가까운 Render 리전
-    healthCheckPath: /api/config
+    healthCheckPath: /
     # 커스텀 도메인. Render 가 도메인을 서비스에 붙이고 TLS 인증서를 자동 발급한다.
     # 단 DNS 레코드는 도메인 등록업체에서 직접 넣어야 검증이 통과한다 (DEPLOY.md 참고).
     domains:
@@ -29,10 +29,3 @@ services:
       # 세션 서명 키 — Render가 한 번 생성해 배포 간 유지(재배포해도 로그인 유지).
       - key: SESSION_SECRET
         generateValue: true
-      # 결제(포트원 V2) 키는 레포에 넣지 않고 대시보드에서 입력. sync:false → 배포 시 입력 요청.
-      - key: PORTONE_STORE_ID
-        sync: false
-      - key: PORTONE_CHANNEL_KEY
-        sync: false
-      - key: PORTONE_API_SECRET
-        sync: false
