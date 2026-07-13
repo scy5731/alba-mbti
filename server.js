@@ -171,6 +171,10 @@ app.delete("/api/auth/account", requireAuth, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// 헬스체크. Render 서비스에 healthCheckPath=/api/config 가 남아 있어도 통과하도록
+// 같은 경로를 유지한다(결제 시절의 잔재 — 지금은 결제 정보가 아니라 상태만 준다).
+app.get(["/api/health", "/api/config"], (req, res) => res.json({ ok: true, free: true }));
+
 app.use(express.static(path.join(__dirname, "public")));
 
 store.init()
