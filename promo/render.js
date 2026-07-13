@@ -16,12 +16,12 @@ const CSS = `
 @font-face{font-family:Pretendard;font-weight:700;font-display:block;src:url("../fonts/Pretendard-Bold.woff2") format("woff2")}
 @font-face{font-family:Pretendard;font-weight:800;font-display:block;src:url("../fonts/Pretendard-ExtraBold.woff2") format("woff2")}
 *{margin:0;padding:0;box-sizing:border-box}
-:root{--brand:#16A34A;--brandDark:#15803D;--brandLt:#E7F6EC;--ink:#222222;--gray:#7A8698}
+:root{--brand:#1BB055;--brandDark:#17924A;--brandLt:#E8F8EE;--ink:#222222;--gray:#7A8698}
 html,body{width:1080px;height:1350px}
 body{font-family:Pretendard,"Malgun Gothic","맑은 고딕",sans-serif;color:var(--ink);
   -webkit-font-smoothing:antialiased;letter-spacing:-0.02em;overflow:hidden}
 .slide{width:1080px;height:1350px;padding:96px 88px;display:flex;flex-direction:column;position:relative;background:#fff}
-.slide.dark{background:linear-gradient(160deg,#22B85A 0%,#16A34A 45%,#15803D 100%);color:#fff}
+.slide.dark{background:linear-gradient(160deg,#3FC85D 0%,#1BB055 45%,#17924A 100%);color:#fff}
 
 /* --- 커버 --- */
 .cover-main{margin:auto 0}
