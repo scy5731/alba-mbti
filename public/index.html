@@ -101,20 +101,20 @@ async function api(method, url, body) {
   try { const r = await fetch(url, opt); let d = {}; try { d = await r.json(); } catch (e) {} return { status: r.status, ...d }; }
   catch (e) { return { status: 0, ok: false, error: "네트워크 오류예요." }; }
 }
-const PRICE = 990; // 프리미엄 가이드 가격(원)
-// 토스페이먼츠 v2 표준 SDK 동적 로드
-let tossLoading = null;
-function loadToss() {
-  if (window.TossPayments) return Promise.resolve(window.TossPayments);
-  if (tossLoading) return tossLoading;
-  tossLoading = new Promise((resolve, reject) => {
+const PRICE = 3900; // 알바 MBTI 결과 열람 가격(원) · 1회 결제로 평생 이용
+// 포트원(PortOne) V2 브라우저 SDK 동적 로드
+let portoneLoading = null;
+function loadPortOne() {
+  if (window.PortOne) return Promise.resolve(window.PortOne);
+  if (portoneLoading) return portoneLoading;
+  portoneLoading = new Promise((resolve, reject) => {
     const s = document.createElement("script");
-    s.src = "https://js.tosspayments.com/v2/standard";
-    s.onload = () => resolve(window.TossPayments);
-    s.onerror = () => { tossLoading = null; reject(new Error("결제 모듈 로드 실패")); };
+    s.src = "https://cdn.portone.io/v2/browser-sdk.js";
+    s.onload = () => resolve(window.PortOne);
+    s.onerror = () => { portoneLoading = null; reject(new Error("결제 모듈 로드 실패")); };
     document.head.appendChild(s);
   });
-  return tossLoading;
+  return portoneLoading;
 }
 
 /* ============================================================
@@ -1479,30 +1479,23 @@ function TypesTab({ onGuide, initial }) {
   );
 }
 
-/* 가이드 탭 — 기본 상식 + 실전 꿀팁 + 용어 사전 */
-function GuideTab({ onGuide, user, onPremium }) {
-  const premium = !!(user && user.premium);
+/* 가이드 탭 — 심화 가이드 + 기본 상식 + 실전 꿀팁 + 용어 사전.
+   가이드는 전부 무료다. 유료는 알바 MBTI 결과 리포트뿐(Paywall). */
+function GuideTab({ onGuide }) {
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
       <PageHead tag="알바 가이드" title="알바 가이드" sub="계약·급여·응대까지, 초보가 알아야 할 모든 것" />
 
-      {/* 프리미엄 가이드 */}
+      {/* 심화 가이드 — 전면 무료 공개 */}
       <div className="bg-white px-5 py-5 mt-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-bold text-gray-900">👑 프리미엄 가이드</h2>
-          {premium && <span className="text-[11px] font-bold text-white bg-brand px-2 py-0.5 rounded-full">이용 중</span>}
+          <h2 className="text-lg font-bold text-gray-900">📕 심화 가이드</h2>
+          <span className="text-[11px] font-bold text-white bg-brand px-2 py-0.5 rounded-full">무료</span>
         </div>
-        <p className="text-xs text-gray-400 mt-0.5">무료보다 훨씬 깊고 상세한 심화 가이드 {PREMIUM.length}편</p>
-        {!premium && (
-          <button onClick={onPremium} className="w-full mt-3 bg-brand text-white rounded-2xl p-4 flex items-center gap-3 press shadow-soft">
-            <div className="w-10 h-10 bg-white/20 rounded-xl grid place-items-center text-xl shrink-0">🔓</div>
-            <div className="flex-1 min-w-0 text-left"><div className="font-bold text-[15px]">프리미엄 잠금 해제</div><div className="text-[12px] text-white/85">₩{PRICE.toLocaleString()} · 심화 가이드 {PREMIUM.length}편 평생 이용</div></div>
-            <span className="text-white/90 text-xl">›</span>
-          </button>
-        )}
+        <p className="text-xs text-gray-400 mt-0.5">계약서 독소조항부터 임금체불 신고까지, 깊고 상세하게 {PREMIUM.length}편</p>
         <div className="mt-3 divide-y divide-gray-100">
           {PREMIUM.map((pm) => (
-            <button key={pm.id} onClick={() => premium ? onGuide({ kind: "premium", id: pm.id }) : onPremium()}
+            <button key={pm.id} onClick={() => onGuide({ kind: "premium", id: pm.id })}
               className="w-full text-left py-3.5 flex gap-3 items-center press">
               <div className="w-12 h-12 bg-brandLt rounded-xl grid place-items-center text-2xl shrink-0">{pm.emoji}</div>
               <div className="flex-1 min-w-0">
@@ -1510,7 +1503,7 @@ function GuideTab({ onGuide, user, onPremium }) {
                 <div className="font-bold text-[15px] text-gray-900 leading-snug">{pm.title}</div>
                 <div className="text-[13px] text-gray-400 mt-0.5 truncate">{pm.sub}</div>
               </div>
-              <span className={"shrink-0 " + (premium ? "text-gray-300" : "text-gray-400")}>{premium ? "›" : "🔒"}</span>
+              <span className="shrink-0 text-gray-300">›</span>
             </button>
           ))}
         </div>
@@ -1642,10 +1635,13 @@ function MbtiIntro({ onStart, prev }) {
         <div className="text-6xl pop">🧬</div>
         <h1 className="text-3xl font-bold mt-4 leading-tight">알바 MBTI</h1>
         <p className="text-white/90 mt-3 leading-relaxed text-[15px]">
-          12개 질문으로 알아보는 나의 알바 성향.<br/>
+          {QUIZ.length}개 질문으로 알아보는 나의 알바 성향.<br/>
           16가지 유형 중 내 유형과,<br/>잘 맞는 알바 추천·가이드까지.
         </p>
-        <p className="text-white/70 text-xs mt-3">1분 · 로그인 없음 · 결과 저장</p>
+        {/* 결제 사실을 미리 고지 — 다 풀고 나서야 결제벽을 만나면 낚시로 느껴진다 */}
+        <p className="text-white/70 text-xs mt-3">
+          {QUIZ.length}문항 · 3분 · 결과 리포트 열람 ₩{PRICE.toLocaleString()} (1회 결제, 평생 이용)
+        </p>
       </div>
 
       <div className="px-5 mt-5">
@@ -2659,53 +2655,79 @@ function AccountScreen({ user, onAuthed, onUser, onLogout, onBack }) {
 }
 
 /* ============================================================ 프리미엄 결제/잠금해제 ============================================================ */
-function PremiumScreen({ user, clientKey, onUser, onLogin, onPurchased, onBack }) {
+/* 알바 MBTI 결과 페이월.
+   퀴즈 28문항을 다 푼 직후에 뜬다. 유형 코드/별명까지는 맛보기로 보여주고,
+   상세 리포트(축 해설·추천 알바 TOP3·매칭 근거)를 잠근다.
+   결제는 포트원 V2 — PC는 팝업(즉시 반환), 모바일은 redirectUrl 로 돌아온 뒤
+   App 의 리다이렉트 핸들러가 /api/confirm 을 호출한다. */
+function Paywall({ user, result, storeId, channelKey, onUser, onLogin, onPurchased, onBack }) {
   const [busy, setBusy] = useState(false);
+  const p = result ? PERSONAS[result.code] : null;
   const benefits = [
-    `심화 가이드 ${PREMIUM.length}편 · 평생 이용`,
-    "주휴수당·퇴직금·3.3% 환급 계산기 (입력하면 바로 계산)",
-    "근로계약서 독소조항 O/X — 서명 전 체크",
-    "5인 미만 vs 5인 이상, 내 권리가 갈리는 기준",
-    "임금체불 신고 A to Z (절차·증거·대지급금)",
-    "말문 막힐 때 꺼내 쓰는 대화 대본집 (복사해서 전송)",
-    "근거 법조문까지 함께 — 사장님 앞에서 밀리지 않게",
+    "내 유형 상세 해설 — 강점과 주의할 점",
+    "4축 성향 그래프 (응대·활동·유연·실속)",
+    `나에게 맞는 알바 TOP 3 — 알바 ${TYPES.length}종 중에서`,
+    "왜 나한테 맞는지 '매칭 근거'까지",
+    "반대로 '신중히 볼 알바'도 함께",
+    "잘 맞는 근무환경 태그",
+    "한 번 결제하면 평생 다시 볼 수 있어요",
   ];
+
   const buy = async () => {
     if (busy) return;
     if (!user) { onLogin(); return; }
     setBusy(true);
-    if (clientKey) {
-      try {
-        const TossPayments = await loadToss();
-        const payment = TossPayments(clientKey).payment({ customerKey: "user_" + user.id });
-        const orderId = "premium_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-        await payment.requestPayment({
-          method: "CARD",
-          amount: { currency: "KRW", value: PRICE },
-          orderId,
-          orderName: "알바 메이트 프리미엄 가이드",
-          successUrl: window.location.origin + window.location.pathname,
-          failUrl: window.location.origin + window.location.pathname + "?tossfail=1",
-        });
-      } catch (e) { setBusy(false); alert("결제를 시작하지 못했어요. " + (e && e.message ? e.message : "")); }
-    } else {
+    // 결제 키가 없는 데모 환경 → 모의 결제
+    if (!storeId || !channelKey) {
       const d = await api("POST", "/api/me/premium");
       setBusy(false);
       if (d.ok && d.user) { onUser(d.user); onPurchased(); } else alert(d.error || "구매에 실패했어요.");
+      return;
+    }
+    try {
+      const PortOne = await loadPortOne();
+      const paymentId = "alba-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      const res = await PortOne.requestPayment({
+        storeId, channelKey, paymentId,
+        orderName: "알바 MBTI 결과 열람",
+        totalAmount: PRICE,
+        currency: "CURRENCY_KRW",
+        payMethod: "CARD",
+        // 모바일은 이 주소로 돌아온다(쿼리에 paymentId 가 붙는다)
+        redirectUrl: window.location.origin + window.location.pathname,
+      });
+      // 실패/취소면 code 가 담겨 온다
+      if (res && res.code) { setBusy(false); alert(res.message || "결제가 취소되었어요."); return; }
+      // PC 팝업 플로우는 여기서 바로 서버 검증
+      const c = await api("POST", "/api/confirm", { paymentId: (res && res.paymentId) || paymentId });
+      setBusy(false);
+      if (c.ok) {
+        const me = await api("GET", "/api/auth/me");
+        if (me.user) onUser(me.user);
+        onPurchased();
+      } else alert("결제 확인에 실패했어요. " + (c.error || ""));
+    } catch (e) {
+      setBusy(false);
+      alert("결제를 시작하지 못했어요. " + (e && e.message ? e.message : ""));
     }
   };
-  const alreadyPremium = user && user.premium;
+
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
-      <TopBar onBack={onBack} label="가이드" />
-      <div className="bg-brand text-white px-5 pt-8 pb-8">
-        <div className="text-4xl">👑</div>
-        <h1 className="text-2xl font-bold mt-3">프리미엄 가이드</h1>
-        <p className="text-white/90 mt-1.5 text-[15px]">무료보다 훨씬 깊고 상세한 실전 심화 가이드예요.</p>
+      <TopBar onBack={onBack} label="홈으로" />
+
+      {/* 맛보기 — 유형 코드까지는 보여준다 */}
+      <div className="bg-brand text-white px-5 pt-8 pb-8 text-center">
+        <div className="text-[13px] font-bold text-white/80">내 알바 유형이 나왔어요</div>
+        <div className="text-5xl mt-3">{p ? p.emoji : "🧬"}</div>
+        <div className="text-3xl font-extrabold tracking-wide mt-2">{result ? result.code : "————"}</div>
+        <div className="text-[17px] font-bold mt-1">{p ? p.nick : ""}</div>
+        <div className="text-white/85 text-[14px] mt-1">{p ? p.tag : ""}</div>
       </div>
 
-      <div className="bg-white px-5 py-5 mt-2">
-        <div className="text-[13px] font-bold text-gray-500">이런 걸 볼 수 있어요</div>
+      {/* 잠긴 상세 리포트 */}
+      <div className="bg-white px-5 py-5 mt-2 relative overflow-hidden">
+        <div className="text-[13px] font-bold text-gray-500">상세 리포트에서 볼 수 있어요</div>
         <ul className="mt-3 space-y-2.5">
           {benefits.map((b, i) => (
             <li key={i} className="flex gap-2.5 text-[15px] text-gray-800 leading-relaxed">
@@ -2715,26 +2737,20 @@ function PremiumScreen({ user, clientKey, onUser, onLogin, onPurchased, onBack }
         </ul>
       </div>
 
-      {alreadyPremium ? (
-        <div className="px-5 mt-5">
-          <div className="bg-brandLt rounded-2xl p-4 text-[15px] font-bold text-brand text-center">✓ 이미 프리미엄 이용 중이에요</div>
-          <button onClick={onBack} className="w-full mt-3 bg-brand text-white font-bold py-3.5 rounded-xl press">프리미엄 가이드 보기</button>
+      <div className="px-5 mt-5">
+        <div className="flex items-center justify-between px-1 mb-3">
+          <span className="text-gray-500">결과 리포트 (평생 이용)</span>
+          <span className="text-2xl font-extrabold text-gray-900">₩{PRICE.toLocaleString()}</span>
         </div>
-      ) : (
-        <div className="px-5 mt-5">
-          <div className="flex items-center justify-between px-1 mb-3">
-            <span className="text-gray-500">프리미엄 가이드 (평생 이용)</span>
-            <span className="text-2xl font-extrabold text-gray-900">₩{PRICE.toLocaleString()}</span>
-          </div>
-          <button disabled={busy} onClick={buy} className="w-full bg-brand disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl press text-[16px]">
-            {busy ? "결제 중…" : (user ? `${PRICE.toLocaleString()}원 결제하고 잠금 해제` : "로그인하고 결제하기")}
-          </button>
-          <p className="text-center text-[11px] text-gray-400 mt-2.5">
-            {!user ? "결제하려면 먼저 로그인해 주세요. 프리미엄은 계정에 저장돼요." :
-              (clientKey ? "💳 토스페이먼츠 테스트 결제 · 실제 청구되지 않아요(테스트 카드)" : "🧪 모의 결제(데모) · 실제 청구되지 않아요")}
-          </p>
-        </div>
-      )}
+        <button disabled={busy} onClick={buy} className="w-full bg-brand disabled:bg-gray-300 text-white font-bold py-4 rounded-2xl press text-[16px]">
+          {busy ? "결제 중…" : (user ? `${PRICE.toLocaleString()}원 결제하고 결과 보기` : "로그인하고 결과 보기")}
+        </button>
+        <p className="text-center text-[11px] text-gray-400 mt-2.5">
+          {!user ? "결제하려면 먼저 로그인해 주세요. 결과는 계정에 저장돼 언제든 다시 볼 수 있어요."
+            : (storeId && channelKey ? "💳 카드 결제 · 한 번 결제하면 평생 이용" : "🧪 모의 결제(데모) · 실제 청구되지 않아요")}
+        </p>
+        <p className="text-center text-[11px] text-gray-400 mt-3">알바 가이드와 유형 정보는 전부 무료로 보실 수 있어요.</p>
+      </div>
     </div>
   );
 }
@@ -2749,7 +2765,7 @@ function App() {
   const [detailFrom, setDetailFrom] = useState("home"); // 탭 key 또는 "result"
   const [typesCat, setTypesCat] = useState("all");
   const [user, setUser] = useState(null);
-  const [clientKey, setClientKey] = useState("");
+  const [pay, setPay] = useState({ storeId: "", channelKey: "" }); // 포트원 결제 설정
 
   /* ---------- 뒤로가기(모바일 하드웨어 버튼 / 브라우저) ----------
      화면 전환마다 history 항목을 쌓고, popstate에서 그 화면 상태로 되돌린다.
@@ -2782,26 +2798,30 @@ function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  // 세션 복원 + 결과 동기화 + 토스 결제 리다이렉트 처리
+  // 세션 복원 + 결과 동기화 + 포트원 결제 리다이렉트 처리(모바일)
   useEffect(() => {
-    api("GET", "/api/config").then((d) => setClientKey((d && d.tossClientKey) || ""));
+    api("GET", "/api/config").then((d) => setPay({ storeId: (d && d.storeId) || "", channelKey: (d && d.channelKey) || "" }));
     const params = new URLSearchParams(window.location.search);
     // 쿼리는 지우되 화면 상태(nav)는 유지 — 안 그러면 뒤로가기 복원이 깨진다
     const clean = () => window.history.replaceState({ nav: navRef.current }, "", window.location.pathname);
-    if (params.get("tossfail")) { clean(); alert("결제가 취소되었거나 실패했어요."); }
-    const paymentKey = params.get("paymentKey");
+    // 포트원은 결제 후 redirectUrl 로 paymentId 를, 실패 시 code/message 를 붙여 돌아온다
+    const paymentId = params.get("paymentId");
+    const failCode = params.get("code");
+
+    if (failCode) { clean(); alert(params.get("message") || "결제가 취소되었거나 실패했어요."); }
+
     api("GET", "/api/auth/me").then(async (d) => {
       if (d && d.user) {
         setUser(d.user);
         if (d.user.result && d.user.result.code) { setResult(d.user.result); LS.set("result", d.user.result); }
       }
-      if (paymentKey) {
-        const c = await api("POST", "/api/confirm", { paymentKey, orderId: params.get("orderId"), amount: params.get("amount") });
+      if (paymentId && !failCode) {
+        const c = await api("POST", "/api/confirm", { paymentId });
         clean();
         if (c.ok) {
           const me = await api("GET", "/api/auth/me");
           if (me.user) setUser(me.user);
-          go({ overlay: null, tab: "guideList" }); alert("프리미엄이 활성화됐어요! 🎉");
+          go({ overlay: "result" }); alert("결제가 완료됐어요! 결과를 확인하세요 🎉");
         } else alert("결제 확인에 실패했어요. " + (c.error || ""));
       }
     });
@@ -2821,15 +2841,21 @@ function App() {
     <div className="phone noscroll">
       {/* 몰입 화면(탭바 숨김) */}
       {overlay === "quiz" && <Quiz onDone={done} onBack={back} />}
-      {overlay === "result" && result && <Result result={result} onRetry={() => go({ overlay: "quiz" })} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")} />}
+      {/* 결과는 유료 — 결제 전이면 페이월(맛보기 + 결제)로 대체한다 */}
+      {overlay === "result" && result && (
+        user && user.premium
+          ? <Result result={result} onRetry={() => go({ overlay: "quiz" })} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")} />
+          : <Paywall user={user} result={result} storeId={pay.storeId} channelKey={pay.channelKey}
+              onUser={setUser} onLogin={() => go({ overlay: "account" })}
+              onPurchased={() => go({ overlay: "result" })} onBack={() => goTab("home")} />
+      )}
       {overlay === "detail" && guide && <Guide target={guide} onBack={back} backLabel={detailFrom === "result" ? "‹ 결과로" : "‹ 목록으로"} />}
       {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={back} />}
-      {overlay === "premium" && <PremiumScreen user={user} clientKey={clientKey} onUser={setUser} onLogin={() => go({ overlay: "account" })} onPurchased={() => { go({ overlay: null, tab: "guideList" }); alert("프리미엄이 활성화됐어요! 🎉"); }} onBack={back} />}
 
       {/* 탭 콘텐츠 */}
       {!overlay && tab === "home" && <Home onGuide={(t) => openGuide(t, "home")} onMbti={() => goTab("mbti")} onNav={goTab} onCat={goCat} onCalc={() => goTab("calc")} onAccount={() => go({ overlay: "account" })} user={user} prev={result} />}
       {!overlay && tab === "types" && <TypesTab onGuide={(t) => openGuide(t, "types")} initial={typesCat} />}
-      {!overlay && tab === "guideList" && <GuideTab onGuide={(t) => openGuide(t, "guideList")} user={user} onPremium={() => go({ overlay: "premium" })} />}
+      {!overlay && tab === "guideList" && <GuideTab onGuide={(t) => openGuide(t, "guideList")} />}
       {!overlay && tab === "calc" && <Calc />}
       {!overlay && tab === "mbti" && <MbtiIntro onStart={start} prev={result} />}
       {!overlay && tab === "faq" && <FaqTab />}

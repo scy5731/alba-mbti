@@ -1,5 +1,5 @@
 "use strict";
-// 알바 메이트 — 정적 앱 + 이메일 계정(회원가입/로그인) + 토스 결제 confirm.
+// 알바 메이트 — 정적 앱 + 이메일 계정(회원가입/로그인) + 포트원(PortOne) 결제 검증.
 // 저장소: DATABASE_URL 있으면 PostgreSQL(영구), 없으면 파일 JSON(로컬 개발).
 // 인증: scrypt 해시 + HMAC 서명 httpOnly 쿠키. (외부 인증 라이브러리 없음)
 const path = require("path");
@@ -8,9 +8,13 @@ const crypto = require("crypto");
 const express = require("express");
 
 const PORT = process.env.PORT || 3000;
-const PRICE = 990;
-const CLIENT_KEY = process.env.TOSS_CLIENT_KEY || "";
-const SECRET_KEY = process.env.TOSS_SECRET_KEY || "";
+// 알바 MBTI 결과 열람 = 1회 결제(평생 이용). 가이드는 전부 무료.
+const PRICE = 3900;
+// 결제: 포트원(PortOne) V2. PG 가입비·연회비가 면제되고 포트원 이용료도
+// 월 순거래액 5천만원 미만은 무료라 고정비가 들지 않는다(토스 직연동 대체).
+const PORTONE_STORE_ID = process.env.PORTONE_STORE_ID || "";
+const PORTONE_CHANNEL_KEY = process.env.PORTONE_CHANNEL_KEY || "";
+const PORTONE_API_SECRET = process.env.PORTONE_API_SECRET || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 const DATABASE_URL = process.env.DATABASE_URL || "";
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, "data", "users.json");
@@ -189,42 +193,50 @@ app.delete("/api/auth/account", requireAuth, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// 모의 결제(토스 키 미설정 데모 모드에서만) — 프리미엄 바로 부여
+// 모의 결제(포트원 키 미설정 데모 모드에서만) — 프리미엄 바로 부여.
+// 운영에는 PORTONE_API_SECRET 이 있으므로 이 경로가 막힌다(무단 부여 방지).
 app.post("/api/me/premium", requireAuth, ah(async (req, res) => {
-  if (SECRET_KEY) return res.status(400).json({ ok: false, error: "결제(토스)를 통해서만 구매할 수 있어요." });
+  if (PORTONE_API_SECRET) return res.status(400).json({ ok: false, error: "결제를 통해서만 이용할 수 있어요." });
   const u = await store.setPremium(req.user.id, true);
   res.json({ ok: true, user: publicUser(u) });
 }));
 
-/* ============================================================ 결제(기존) ============================================================ */
-app.get("/api/config", (req, res) => res.json({ tossClientKey: CLIENT_KEY, price: PRICE }));
+/* ============================================================ 결제 (포트원 V2) ==========================
+   플로우: 프론트 PortOne.requestPayment() → 결제창 → paymentId 확보
+        → POST /api/confirm { paymentId }
+        → 서버가 포트원 API 로 결제 건을 '직접 조회'해 status·금액을 재검증(위변조 방지)
+        → 검증되면 계정에 premium 부여 (= 알바 MBTI 결과 평생 열람)
+   토스 직연동에서 포트원으로 교체: PG 가입비·연회비 면제 + 포트원 이용료 무료 구간
+   (월 순거래액 5천만원 미만) 이라 고정비가 들지 않는다.
+   ======================================================================================================= */
+app.get("/api/config", (req, res) =>
+  res.json({ storeId: PORTONE_STORE_ID, channelKey: PORTONE_CHANNEL_KEY, price: PRICE }));
 
 app.post("/api/confirm", async (req, res) => {
-  const { paymentKey, orderId, amount } = req.body || {};
-  if (!SECRET_KEY) return res.status(400).json({ ok: false, error: "서버에 TOSS_SECRET_KEY가 설정되지 않았어요." });
-  if (!paymentKey || !orderId || Number(amount) !== PRICE)
-    return res.status(400).json({ ok: false, error: "잘못된 결제 요청이에요." });
+  const { paymentId } = req.body || {};
+  if (!PORTONE_API_SECRET) return res.status(400).json({ ok: false, error: "서버에 PORTONE_API_SECRET 이 설정되지 않았어요." });
+  if (!paymentId) return res.status(400).json({ ok: false, error: "잘못된 결제 요청이에요." });
   try {
-    const r = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
-      method: "POST",
-      headers: {
-        Authorization: "Basic " + Buffer.from(SECRET_KEY + ":").toString("base64"),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ paymentKey, orderId, amount: Number(amount) }),
+    const r = await fetch("https://api.portone.io/payments/" + encodeURIComponent(paymentId), {
+      headers: { Authorization: "PortOne " + PORTONE_API_SECRET },
     });
     const data = await r.json().catch(() => ({}));
-    if (r.ok) {
-      // 토스가 승인한 실제 결제 금액을 서버에서 재검증(금액 변조 방지)
-      if (Number(data.totalAmount) !== PRICE) return res.status(400).json({ ok: false, error: "결제 금액이 올바르지 않아요." });
-      const u = await currentUser(req);
-      // 멱등: 같은 paymentKey는 한 번만 기록(중복 승인 방지)
-      const already = await store.getPayment(paymentKey);
-      if (!already) await store.recordPayment({ orderId, paymentKey, amount: Number(data.totalAmount), userId: u ? u.id : null });
-      if (u) await store.setPremium(u.id, true);   // 결제 성공 → 프리미엄 계정 귀속
-      return res.json({ ok: true, premium: true, approvedAt: data.approvedAt, totalAmount: data.totalAmount });
-    }
-    return res.status(r.status).json({ ok: false, error: data.message || "결제 승인에 실패했어요.", code: data.code });
+
+    if (!r.ok) return res.status(r.status).json({ ok: false, error: data.message || "결제 조회에 실패했어요.", code: data.type });
+    // 프론트가 보낸 금액은 신뢰하지 않는다. 서버가 조회한 값으로만 판단.
+    if (data.status !== "PAID") return res.status(400).json({ ok: false, error: "결제가 완료되지 않았어요.", status: data.status });
+
+    const total = Number(data.amount && data.amount.total);
+
+    if (total !== PRICE) return res.status(400).json({ ok: false, error: "결제 금액이 올바르지 않아요." });
+
+    const u = await currentUser(req);
+    // 멱등: 같은 paymentId 는 한 번만 기록(중복 승인 방지)
+    const already = await store.getPayment(paymentId);
+
+    if (!already) await store.recordPayment({ orderId: paymentId, paymentKey: paymentId, amount: total, userId: u ? u.id : null });
+    if (u) await store.setPremium(u.id, true);   // 결제 성공 → 계정에 귀속
+    return res.json({ ok: true, premium: true, paidAt: data.paidAt, totalAmount: total });
   } catch (e) {
     return res.status(502).json({ ok: false, error: "결제 서버 연결에 실패했어요." });
   }
@@ -235,6 +247,6 @@ app.use(express.static(path.join(__dirname, "public")));
 store.init()
   .then(async () => {
     const n = await store.count().catch(() => "?");
-    app.listen(PORT, () => console.log(`알바 메이트 실행: http://localhost:${PORT} · 저장소 ${store.kind} · 계정 ${n}명 · toss ${CLIENT_KEY ? "ON" : "OFF"}`));
+    app.listen(PORT, () => console.log(`알바 메이트 실행: http://localhost:${PORT} · 저장소 ${store.kind} · 계정 ${n}명 · 결제(포트원) ${PORTONE_API_SECRET ? "ON" : "OFF(모의결제)"}`));
   })
   .catch((e) => { console.error("저장소 초기화 실패:", e); process.exit(1); });
