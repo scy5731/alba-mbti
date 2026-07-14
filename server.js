@@ -24,19 +24,26 @@ function makePgStore(url) {
   const { Pool } = require("pg");
   const wantSsl = !/localhost|127\.0\.0\.1/.test(url) && process.env.PGSSL !== "off";
   let pool = new Pool({ connectionString: url, ssl: wantSsl ? { rejectUnauthorized: false } : false });
-  const map = (r) => (r ? { id: r.id, email: r.email, passHash: r.pass_hash, nickname: r.nickname, result: r.result || null } : null);
+  const map = (r) => (r ? {
+    id: r.id, email: r.email, passHash: r.pass_hash, nickname: r.nickname,
+    avatar: r.avatar || null, result: r.result || null,
+    createdAt: r.created_at ? new Date(r.created_at).getTime() : null,
+  } : null);
   const DDL = `CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email TEXT UNIQUE NOT NULL,
         pass_hash TEXT NOT NULL,
         nickname TEXT NOT NULL,
+        avatar TEXT,
         result JSONB,
         created_at TIMESTAMPTZ DEFAULT now()
       )`;
+  // 이미 만들어진 테이블에는 avatar 가 없다 — 기동할 때 붙인다.
+  const MIG = "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT";
   return {
     kind: "postgres",
     async init() {
-      const run = async () => { await pool.query(DDL); };
+      const run = async () => { await pool.query(DDL); await pool.query(MIG); };
       try { await run(); }
       catch (e) {
         // Render 내부 연결 등 SSL 미지원 엔드포인트면 SSL 없이 재시도
@@ -53,7 +60,13 @@ function makePgStore(url) {
       const { rows } = await pool.query("INSERT INTO users(email,pass_hash,nickname) VALUES($1,$2,$3) RETURNING *", [email, passHash, nickname]);
       return map(rows[0]);
     },
-    async updateNickname(id, nickname) { const { rows } = await pool.query("UPDATE users SET nickname=$1 WHERE id=$2 RETURNING *", [nickname, id]); return map(rows[0]); },
+    async updateProfile(id, { nickname, avatar }) {
+      const { rows } = await pool.query(
+        "UPDATE users SET nickname=COALESCE($1,nickname), avatar=COALESCE($2,avatar) WHERE id=$3 RETURNING *",
+        [nickname ?? null, avatar ?? null, id]);
+      return map(rows[0]);
+    },
+    async updatePassword(id, passHash) { const { rows } = await pool.query("UPDATE users SET pass_hash=$1 WHERE id=$2 RETURNING *", [passHash, id]); return map(rows[0]); },
     async updateResult(id, result) { const { rows } = await pool.query("UPDATE users SET result=$1 WHERE id=$2 RETURNING *", [result ? JSON.stringify(result) : null, id]); return map(rows[0]); },
     async remove(id) { await pool.query("DELETE FROM users WHERE id=$1", [id]); },
     async count() { const { rows } = await pool.query("SELECT count(*)::int AS n FROM users"); return rows[0].n; },
@@ -98,8 +111,14 @@ function makeFileStore(dbPath) {
     async init() {},
     async findByEmail(e) { return clone(db.users.find((u) => u.email === e)); },
     async findById(id) { return clone(db.users.find((u) => u.id === id)); },
-    async create({ email, passHash, nickname }) { const u = { id: db.nextId++, email, passHash, nickname, result: null, createdAt: Date.now() }; db.users.push(u); save(); return clone(u); },
-    async updateNickname(id, nickname) { const u = db.users.find((x) => x.id === id); if (!u) return null; u.nickname = nickname; save(); return clone(u); },
+    async create({ email, passHash, nickname }) { const u = { id: db.nextId++, email, passHash, nickname, avatar: null, result: null, createdAt: Date.now() }; db.users.push(u); save(); return clone(u); },
+    async updateProfile(id, { nickname, avatar }) {
+      const u = db.users.find((x) => x.id === id); if (!u) return null;
+      if (nickname != null) u.nickname = nickname;
+      if (avatar != null) u.avatar = avatar;
+      save(); return clone(u);
+    },
+    async updatePassword(id, passHash) { const u = db.users.find((x) => x.id === id); if (!u) return null; u.passHash = passHash; save(); return clone(u); },
     async updateResult(id, result) { const u = db.users.find((x) => x.id === id); if (!u) return null; u.result = result || null; save(); return clone(u); },
     async remove(id) { db.users = db.users.filter((x) => x.id !== id); save(); },
     async count() { return db.users.length; },
@@ -140,7 +159,11 @@ app.set("trust proxy", 1);      // Render 등 프록시 뒤에서 req.secure 정
 app.use(express.json());
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((e) => { console.error(e); res.status(500).json({ ok: false, error: "서버 오류가 발생했어요." }); });
 const isAdmin = (u) => !!(u && ADMIN_EMAIL && String(u.email).toLowerCase() === ADMIN_EMAIL);
-const publicUser = (u) => ({ id: u.id, email: u.email, nickname: u.nickname, result: u.result || null, admin: isAdmin(u) });
+const publicUser = (u) => ({
+  id: u.id, email: u.email, nickname: u.nickname,
+  avatar: u.avatar || null, result: u.result || null,
+  createdAt: u.createdAt || null, admin: isAdmin(u),
+});
 
 /* ---------- 비밀번호 해시 (scrypt) ---------- */
 function hashPw(pw) { const salt = crypto.randomBytes(16).toString("hex"); return salt + ":" + crypto.scryptSync(pw, salt, 64).toString("hex"); }
@@ -215,20 +238,55 @@ app.post("/api/auth/logout", (req, res) => { clearSession(res); res.json({ ok: t
 
 app.get("/api/auth/me", ah(async (req, res) => { const u = await currentUser(req); res.json({ ok: true, user: u ? publicUser(u) : null }); }));
 
+// 아바타는 이모지 한 글자만 받는다(임의 문자열·이미지 URL 저장 방지).
+const AVATARS = ["🙂", "😎", "🐣", "🐱", "🐶", "🦊", "🐻", "🦁", "🐼", "🐨", "🐸", "🦄", "⚡", "🌱", "🍀", "🔥"];
+
 app.patch("/api/auth/profile", requireAuth, ah(async (req, res) => {
-  let { nickname } = req.body || {};
-  nickname = String(nickname || "").trim();
-  if (!nickname) return res.status(400).json({ ok: false, error: "닉네임을 입력해 주세요." });
-  if (nickname.length > 20) nickname = nickname.slice(0, 20);
-  const u = await store.updateNickname(req.user.id, nickname);
+  const body = req.body || {};
+  const patch = {};
+  if (body.nickname !== undefined) {
+    let nickname = String(body.nickname || "").trim();
+    if (!nickname) return res.status(400).json({ ok: false, error: "닉네임을 입력해 주세요." });
+    patch.nickname = nickname.slice(0, 20);
+  }
+  if (body.avatar !== undefined) {
+    const a = String(body.avatar || "");
+    if (!AVATARS.includes(a)) return res.status(400).json({ ok: false, error: "사용할 수 없는 아바타예요." });
+    patch.avatar = a;
+  }
+  if (!Object.keys(patch).length) return res.status(400).json({ ok: false, error: "바꿀 내용이 없어요." });
+  const u = await store.updateProfile(req.user.id, patch);
   res.json({ ok: true, user: publicUser(u) });
 }));
 
-// 알바 MBTI 결과를 계정에 저장(기기 간 동기화)
+// 비밀번호 변경 — 현재 비밀번호를 반드시 다시 확인한다(세션 탈취 시 잠금 방지).
+app.patch("/api/auth/password", requireAuth, ah(async (req, res) => {
+  const { current, next } = req.body || {};
+  if (!verifyPw(String(current || ""), req.user.passHash)) {
+    return res.status(401).json({ ok: false, error: "현재 비밀번호가 맞지 않아요." });
+  }
+  if (!next || String(next).length < 6) return res.status(400).json({ ok: false, error: "새 비밀번호는 6자 이상이어야 해요." });
+  if (String(next) === String(current)) return res.status(400).json({ ok: false, error: "지금과 다른 비밀번호를 입력해 주세요." });
+  await store.updatePassword(req.user.id, hashPw(String(next)));
+  res.json({ ok: true });
+}));
+
+// 알바 MBTI 결과를 계정에 저장(기기 간 동기화). result 가 없으면 저장된 결과를 지운다.
 app.put("/api/me/result", requireAuth, ah(async (req, res) => {
   const { result } = req.body || {};
   const u = await store.updateResult(req.user.id, result && result.code ? result : null);
   res.json({ ok: true, user: publicUser(u) });
+}));
+
+// 내 데이터 내려받기 — 계정에 저장된 내 정보 전부(비밀번호 해시는 제외).
+app.get("/api/me/export", requireAuth, ah(async (req, res) => {
+  const u = req.user;
+  res.setHeader("Content-Disposition", 'attachment; filename="alba-mate-my-data.json"');
+  res.json({
+    exportedAt: new Date().toISOString(),
+    account: { id: u.id, email: u.email, nickname: u.nickname, avatar: u.avatar || null, joinedAt: u.createdAt ? new Date(u.createdAt).toISOString() : null },
+    albaMbti: u.result || null,
+  });
 }));
 
 app.delete("/api/auth/account", requireAuth, ah(async (req, res) => {

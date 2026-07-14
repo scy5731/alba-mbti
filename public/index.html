@@ -2569,41 +2569,173 @@ function AuthField({ label, type, value, set, placeholder, autoComplete, onEnter
   );
 }
 
-function Profile({ user, onUser, onLogout, onBack, onAdmin }) {
+/* 서버가 허용하는 아바타 목록과 같아야 한다(server.js AVATARS). */
+const AVATARS = ["🙂", "😎", "🐣", "🐱", "🐶", "🦊", "🐻", "🦁", "🐼", "🐨", "🐸", "🦄", "⚡", "🌱", "🍀", "🔥"];
+
+/* 프로필 화면의 카드 한 칸. (가이드 화면의 Section 과는 다른 컴포넌트다) */
+function ProfileCard({ title, sub, children }) {
+  return (
+    <div className="bg-white px-5 py-5 mt-2">
+      <div className="text-[13px] font-bold text-gray-800">{title}</div>
+      {sub && <p className="text-[12px] text-gray-400 mt-0.5">{sub}</p>}
+      <div className="mt-3.5">{children}</div>
+    </div>
+  );
+}
+
+function Profile({ user, onUser, onLogout, onBack, onAdmin, onRetake, onViewResult }) {
   const [nick, setNick] = useState(user.nickname);
+  const [avatar, setAvatar] = useState(user.avatar || AVATARS[0]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [pwOpen, setPwOpen] = useState(false);
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [pwMsg, setPwMsg] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+
+  const dirty = nick.trim() !== user.nickname || avatar !== (user.avatar || AVATARS[0]);
+  const toast = (t) => { setMsg(t); setTimeout(() => setMsg(""), 1800); };
+
   const save = async () => {
-    setBusy(true); const d = await api("PATCH", "/api/auth/profile", { nickname: nick }); setBusy(false);
-    if (d.ok) { onUser(d.user); setMsg("저장했어요 ✓"); setTimeout(() => setMsg(""), 1500); } else setMsg(d.error || "저장에 실패했어요.");
+    setBusy(true);
+    const d = await api("PATCH", "/api/auth/profile", { nickname: nick.trim(), avatar });
+    setBusy(false);
+    if (d.ok) { onUser(d.user); toast("저장했어요 ✓"); } else toast(d.error || "저장에 실패했어요.");
   };
+
+  const changePw = async () => {
+    if (pwBusy) return;
+    setPwBusy(true); setPwMsg("");
+    const d = await api("PATCH", "/api/auth/password", { current: cur, next });
+    setPwBusy(false);
+    if (d.ok) { setCur(""); setNext(""); setPwOpen(false); toast("비밀번호를 바꿨어요 ✓"); }
+    else setPwMsg(d.error || "변경에 실패했어요.");
+  };
+
+  const clearResult = async () => {
+    if (!window.confirm("저장된 알바 MBTI 결과를 지울까요?")) return;
+    const d = await api("PUT", "/api/me/result", { result: null });
+    if (d.ok) { onUser(d.user); LS.set("result", null); toast("결과를 지웠어요"); }
+  };
+
   const logout = async () => { await api("POST", "/api/auth/logout"); onLogout(); };
-  const del = async () => { if (!window.confirm("정말 탈퇴할까요? 계정과 저장된 결과가 삭제돼요.")) return; await api("DELETE", "/api/auth/account"); onLogout(); };
+  const del = async () => {
+    if (!window.confirm("정말 탈퇴할까요? 계정과 저장된 결과가 삭제되고 되돌릴 수 없어요.")) return;
+    await api("DELETE", "/api/auth/account");
+    onLogout();
+  };
+
   const r = user.result;
+  const p = r && PERSONAS[r.code];
+  const joined = user.createdAt ? new Date(user.createdAt) : null;
+  const days = joined ? Math.max(1, Math.floor((Date.now() - joined.getTime()) / 86400000) + 1) : null;
+
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
       <TopBar onBack={onBack} label="홈" />
-      <div className="bg-white px-5 pt-6 pb-6 flex items-center gap-3">
-        <div className="w-14 h-14 rounded-full bg-brand text-white grid place-items-center text-2xl font-bold shrink-0">{(user.nickname || "?").slice(0, 1)}</div>
-        <div className="min-w-0"><div className="font-bold text-lg text-gray-900 truncate">{user.nickname}</div><div className="text-[13px] text-gray-500 truncate">{user.email}</div></div>
+
+      {/* 프로필 헤더 */}
+      <div className="bg-white px-5 pt-6 pb-6 flex items-center gap-3.5">
+        <div className="w-16 h-16 rounded-full bg-brandLt grid place-items-center text-3xl shrink-0">
+          {user.avatar || (user.nickname || "?").slice(0, 1)}
+        </div>
+        <div className="min-w-0">
+          <div className="font-bold text-lg text-gray-900 truncate">{user.nickname}</div>
+          <div className="text-[13px] text-gray-500 truncate">{user.email}</div>
+          {joined && (
+            <div className="text-[12px] text-gray-400 mt-0.5">
+              {joined.toLocaleDateString("ko-KR")} 가입 · 함께한 지 {days}일째
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="bg-white px-5 py-5 mt-2">
-        <label className="text-[13px] font-semibold text-gray-600">닉네임</label>
-        <div className="flex gap-2 mt-1.5">
-          <input value={nick} onChange={(e) => setNick(e.target.value)} className="flex-1 min-w-0 px-4 py-3 text-[15px] bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand" />
-          <button disabled={busy || !nick.trim() || nick === user.nickname} onClick={save} className="px-5 bg-brand disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-xl press shrink-0">저장</button>
-        </div>
-        {msg && <p className="text-[12px] text-brand mt-2 font-semibold">{msg}</p>}
-      </div>
+      {msg && <p className="px-5 pt-3 text-[13px] font-bold text-brand">{msg}</p>}
 
-      {r && (
-        <div className="bg-white px-5 py-5 mt-2">
-          <div className="text-[13px] font-semibold text-gray-600">저장된 알바 MBTI</div>
-          <div className="mt-1.5 font-bold text-[15px] text-gray-900">{PERSONAS[r.code].emoji} {r.code} · {PERSONAS[r.code].nick}</div>
-          <div className="text-[12px] text-gray-400 mt-0.5">여러 기기에서 로그인하면 결과가 함께 보여요.</div>
+      {/* 프로필 편집 */}
+      <ProfileCard title="프로필" sub="아바타와 닉네임은 언제든 바꿀 수 있어요.">
+        <div className="grid grid-cols-8 gap-1.5">
+          {AVATARS.map((a) => (
+            <button key={a} onClick={() => setAvatar(a)}
+              className={"aspect-square rounded-xl text-xl grid place-items-center press transition " +
+                (avatar === a ? "bg-brand/10 ring-2 ring-brand" : "bg-gray-50")}>
+              {a}
+            </button>
+          ))}
         </div>
-      )}
+        <div className="flex gap-2 mt-3.5">
+          <input value={nick} onChange={(e) => setNick(e.target.value)} maxLength={20} placeholder="닉네임"
+            className="flex-1 min-w-0 px-4 py-3 text-[15px] bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand" />
+          <button disabled={busy || !nick.trim() || !dirty} onClick={save}
+            className="px-5 bg-brand disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-xl press shrink-0">
+            {busy ? "저장 중" : "저장"}
+          </button>
+        </div>
+      </ProfileCard>
+
+      {/* 내 알바 MBTI */}
+      <ProfileCard title="내 알바 MBTI" sub="결과는 계정에 저장돼 다른 기기에서도 이어서 볼 수 있어요.">
+        {p ? (
+          <>
+            <div className="flex items-center gap-3 bg-brandLt rounded-2xl px-4 py-3.5">
+              <div className="text-3xl">{p.emoji}</div>
+              <div className="min-w-0">
+                <div className="font-extrabold text-[16px] text-gray-900">{r.code} · {p.nick}</div>
+                <div className="text-[12px] text-gray-500 truncate">{p.tag}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <button onClick={onViewResult} className="bg-brand text-white font-bold py-3 rounded-xl press text-[14px]">결과 리포트 보기</button>
+              <button onClick={onRetake} className="bg-white border border-gray-200 text-gray-700 font-bold py-3 rounded-xl press text-[14px]">다시 테스트하기</button>
+            </div>
+            <button onClick={clearResult} className="w-full text-[12px] text-gray-400 mt-2 py-1.5">저장된 결과 지우기</button>
+          </>
+        ) : (
+          <>
+            <p className="text-[14px] text-gray-500 leading-relaxed">아직 테스트를 안 하셨어요.<br/>28문항 3분이면 내 유형과 추천 알바를 볼 수 있어요.</p>
+            <button onClick={onRetake} className="w-full bg-brand text-white font-bold py-3.5 rounded-xl press mt-3">알바 MBTI 하러 가기</button>
+          </>
+        )}
+      </ProfileCard>
+
+      {/* 계정 보안 */}
+      <ProfileCard title="계정" sub="이메일은 로그인 아이디라 바꿀 수 없어요.">
+        <div className="flex items-center justify-between py-1">
+          <span className="text-[14px] text-gray-500">이메일</span>
+          <span className="text-[14px] font-semibold text-gray-800 truncate ml-3">{user.email}</span>
+        </div>
+        {!pwOpen ? (
+          <button onClick={() => setPwOpen(true)} className="w-full bg-white border border-gray-200 text-gray-700 font-bold py-3 rounded-xl press mt-3 text-[14px]">
+            비밀번호 변경
+          </button>
+        ) : (
+          <div className="mt-3 space-y-2.5">
+            <input type="password" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="현재 비밀번호" autoComplete="current-password"
+              className="w-full px-4 py-3 text-[15px] bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand" />
+            <input type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="새 비밀번호 (6자 이상)" autoComplete="new-password"
+              onKeyDown={(e) => e.key === "Enter" && changePw()}
+              className="w-full px-4 py-3 text-[15px] bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand" />
+            {pwMsg && <p className="text-[13px] text-red-500 font-medium">{pwMsg}</p>}
+            <div className="grid grid-cols-2 gap-2">
+              <button disabled={pwBusy || !cur || next.length < 6} onClick={changePw}
+                className="bg-brand disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold py-3 rounded-xl press text-[14px]">
+                {pwBusy ? "변경 중" : "변경하기"}
+              </button>
+              <button onClick={() => { setPwOpen(false); setCur(""); setNext(""); setPwMsg(""); }}
+                className="bg-white border border-gray-200 text-gray-600 font-bold py-3 rounded-xl press text-[14px]">취소</button>
+            </div>
+          </div>
+        )}
+      </ProfileCard>
+
+      {/* 내 데이터 */}
+      <ProfileCard title="내 데이터" sub="계정에 저장된 내 정보를 파일로 받아둘 수 있어요.">
+        <a href="/api/me/export" download
+          className="block w-full text-center bg-white border border-gray-200 text-gray-700 font-bold py-3 rounded-xl press text-[14px]">
+          ⬇ 내 데이터 내려받기 (JSON)
+        </a>
+      </ProfileCard>
 
       {/* 관리자(ADMIN_EMAIL 계정)에게만 보인다. 서버가 세션으로 판단한 값이다. */}
       {user.admin && (
@@ -2732,7 +2864,7 @@ function AdminScreen({ onBack }) {
   );
 }
 
-function AccountScreen({ user, onAuthed, onUser, onLogout, onBack, onAdmin }) {
+function AccountScreen({ user, onAuthed, onUser, onLogout, onBack, onAdmin, onRetake, onViewResult }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -2749,7 +2881,7 @@ function AccountScreen({ user, onAuthed, onUser, onLogout, onBack, onAdmin }) {
     if (d.ok && d.user) onAuthed(d.user);
     else setErr(d.error || "문제가 발생했어요.");
   };
-  if (user) return <Profile user={user} onUser={onUser} onLogout={onLogout} onBack={onBack} onAdmin={onAdmin} />;
+  if (user) return <Profile user={user} onUser={onUser} onLogout={onLogout} onBack={onBack} onAdmin={onAdmin} onRetake={onRetake} onViewResult={onViewResult} />;
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
       <TopBar onBack={onBack} label="홈" />
@@ -2924,7 +3056,7 @@ function App() {
       {overlay === "result" && result &&
         <Result result={result} onRetry={() => go({ overlay: "quiz" })} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")} />}
       {overlay === "detail" && guide && <Guide target={guide} onBack={back} backLabel={detailFrom === "result" ? "‹ 결과로" : "‹ 목록으로"} />}
-      {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={back} onAdmin={() => go({ overlay: "admin" })} />}
+      {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={back} onAdmin={() => go({ overlay: "admin" })} onRetake={() => go({ overlay: "quiz" })} onViewResult={() => go({ overlay: "result" })} />}
       {overlay === "admin" && user.admin && <AdminScreen onBack={back} />}
 
       {/* 탭 콘텐츠 */}
