@@ -9,6 +9,9 @@ const crypto = require("crypto");
 const express = require("express");
 
 const PORT = process.env.PORT || 3000;
+// 관리자 계정. 이 이메일로 로그인했을 때만 관리자 화면과 /api/admin/* 이 열린다.
+// 비워두면 관리자 기능은 완전히 닫힌다(운영에 깜빡하고 열어두는 사고 방지).
+const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 const DATABASE_URL = process.env.DATABASE_URL || "";
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, "data", "users.json");
@@ -54,6 +57,33 @@ function makePgStore(url) {
     async updateResult(id, result) { const { rows } = await pool.query("UPDATE users SET result=$1 WHERE id=$2 RETURNING *", [result ? JSON.stringify(result) : null, id]); return map(rows[0]); },
     async remove(id) { await pool.query("DELETE FROM users WHERE id=$1", [id]); },
     async count() { const { rows } = await pool.query("SELECT count(*)::int AS n FROM users"); return rows[0].n; },
+
+    /* ---- 관리자 조회 ---- */
+    async listUsers({ q = "", limit = 50, offset = 0 } = {}) {
+      const like = "%" + q.toLowerCase() + "%";
+      const where = q ? "WHERE lower(email) LIKE $1 OR lower(nickname) LIKE $1" : "";
+      const params = q ? [like, limit, offset] : [limit, offset];
+      const { rows } = await pool.query(
+        `SELECT id, email, nickname, result, created_at FROM users ${where}
+         ORDER BY created_at DESC NULLS LAST, id DESC LIMIT $${q ? 2 : 1} OFFSET $${q ? 3 : 2}`, params);
+      const { rows: c } = await pool.query(`SELECT count(*)::int AS n FROM users ${where}`, q ? [like] : []);
+      return {
+        total: c[0].n,
+        users: rows.map((r) => ({
+          id: r.id, email: r.email, nickname: r.nickname,
+          mbti: r.result && r.result.code ? r.result.code : null,
+          createdAt: r.created_at ? new Date(r.created_at).getTime() : null,
+        })),
+      };
+    },
+    async stats() {
+      const { rows: t } = await pool.query("SELECT count(*)::int AS n FROM users");
+      const { rows: w } = await pool.query("SELECT count(*)::int AS n FROM users WHERE created_at > now() - interval '7 days'");
+      const { rows: d } = await pool.query("SELECT count(*)::int AS n FROM users WHERE created_at > now() - interval '1 day'");
+      const { rows: m } = await pool.query(
+        "SELECT result->>'code' AS code, count(*)::int AS n FROM users WHERE result->>'code' IS NOT NULL GROUP BY 1 ORDER BY 2 DESC");
+      return { total: t[0].n, last7d: w[0].n, last24h: d[0].n, mbti: m.map((r) => ({ code: r.code, n: r.n })) };
+    },
   };
 }
 
@@ -73,6 +103,33 @@ function makeFileStore(dbPath) {
     async updateResult(id, result) { const u = db.users.find((x) => x.id === id); if (!u) return null; u.result = result || null; save(); return clone(u); },
     async remove(id) { db.users = db.users.filter((x) => x.id !== id); save(); },
     async count() { return db.users.length; },
+
+    /* ---- 관리자 조회 ---- */
+    async listUsers({ q = "", limit = 50, offset = 0 } = {}) {
+      const k = q.toLowerCase();
+      const hit = db.users.filter((u) =>
+        !k || u.email.toLowerCase().includes(k) || String(u.nickname || "").toLowerCase().includes(k));
+      const sorted = [...hit].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0) || b.id - a.id);
+      return {
+        total: hit.length,
+        users: sorted.slice(offset, offset + limit).map((u) => ({
+          id: u.id, email: u.email, nickname: u.nickname,
+          mbti: u.result && u.result.code ? u.result.code : null,
+          createdAt: u.createdAt || null,
+        })),
+      };
+    },
+    async stats() {
+      const now = Date.now(), DAY = 86400000;
+      const mbti = {};
+      db.users.forEach((u) => { const c = u.result && u.result.code; if (c) mbti[c] = (mbti[c] || 0) + 1; });
+      return {
+        total: db.users.length,
+        last7d: db.users.filter((u) => u.createdAt && now - u.createdAt < 7 * DAY).length,
+        last24h: db.users.filter((u) => u.createdAt && now - u.createdAt < DAY).length,
+        mbti: Object.entries(mbti).map(([code, n]) => ({ code, n })).sort((a, b) => b.n - a.n),
+      };
+    },
   };
 }
 
@@ -82,7 +139,8 @@ const app = express();
 app.set("trust proxy", 1);      // Render 등 프록시 뒤에서 req.secure 정상 동작
 app.use(express.json());
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((e) => { console.error(e); res.status(500).json({ ok: false, error: "서버 오류가 발생했어요." }); });
-const publicUser = (u) => ({ id: u.id, email: u.email, nickname: u.nickname, result: u.result || null });
+const isAdmin = (u) => !!(u && ADMIN_EMAIL && String(u.email).toLowerCase() === ADMIN_EMAIL);
+const publicUser = (u) => ({ id: u.id, email: u.email, nickname: u.nickname, result: u.result || null, admin: isAdmin(u) });
 
 /* ---------- 비밀번호 해시 (scrypt) ---------- */
 function hashPw(pw) { const salt = crypto.randomBytes(16).toString("hex"); return salt + ":" + crypto.scryptSync(pw, salt, 64).toString("hex"); }
@@ -118,6 +176,14 @@ function setSession(req, res, uid) {
 function clearSession(res) { res.setHeader("Set-Cookie", `${COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`); }
 async function currentUser(req) { const p = verifyToken(getCookie(req, COOKIE)); return p ? await store.findById(p.uid) : null; }
 const requireAuth = ah(async (req, res, next) => { const u = await currentUser(req); if (!u) return res.status(401).json({ ok: false, error: "로그인이 필요해요." }); req.user = u; next(); });
+// 관리자 여부는 세션 사용자의 이메일로 서버가 판단한다. 프론트가 보내는 값은 신뢰하지 않는다.
+// 관리자가 아니면 404 로 답한다 — 관리자 API 의 존재 자체를 알려주지 않는다.
+const requireAdmin = ah(async (req, res, next) => {
+  const u = await currentUser(req);
+  if (!isAdmin(u)) return res.status(404).json({ ok: false, error: "찾을 수 없어요." });
+  req.user = u;
+  next();
+});
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -171,6 +237,28 @@ app.delete("/api/auth/account", requireAuth, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* ============================================================ 관리자 (ADMIN_EMAIL 계정만) ============================================================ */
+app.get("/api/admin/stats", requireAdmin, ah(async (req, res) => {
+  res.json({ ok: true, stats: await store.stats(), storage: store.kind });
+}));
+
+app.get("/api/admin/users", requireAdmin, ah(async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  res.json({ ok: true, ...(await store.listUsers({ q, limit, offset })) });
+}));
+
+app.delete("/api/admin/users/:id", requireAdmin, ah(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  // 관리자가 자기 계정을 지우면 관리자 화면에 다시 들어올 수 없다.
+  if (id === req.user.id) return res.status(400).json({ ok: false, error: "관리자 본인 계정은 여기서 지울 수 없어요." });
+  const target = await store.findById(id);
+  if (!target) return res.status(404).json({ ok: false, error: "없는 계정이에요." });
+  await store.remove(id);
+  res.json({ ok: true });
+}));
+
 // 헬스체크. Render 서비스에 healthCheckPath=/api/config 가 남아 있어도 통과하도록
 // 같은 경로를 유지한다(결제 시절의 잔재 — 지금은 결제 정보가 아니라 상태만 준다).
 app.get(["/api/health", "/api/config"], (req, res) => res.json({ ok: true, free: true }));
@@ -180,6 +268,7 @@ app.use(express.static(path.join(__dirname, "public")));
 store.init()
   .then(async () => {
     const n = await store.count().catch(() => "?");
-    app.listen(PORT, () => console.log(`알바 메이트 실행: http://localhost:${PORT} · 저장소 ${store.kind} · 계정 ${n}명 · 전면 무료`));
+    const admin = ADMIN_EMAIL ? `관리자 ${ADMIN_EMAIL}` : "관리자 OFF(ADMIN_EMAIL 미설정)";
+    app.listen(PORT, () => console.log(`알바 메이트 실행: http://localhost:${PORT} · 저장소 ${store.kind} · 계정 ${n}명 · ${admin}`));
   })
   .catch((e) => { console.error("저장소 초기화 실패:", e); process.exit(1); });

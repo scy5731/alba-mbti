@@ -2569,7 +2569,7 @@ function AuthField({ label, type, value, set, placeholder, autoComplete, onEnter
   );
 }
 
-function Profile({ user, onUser, onLogout, onBack }) {
+function Profile({ user, onUser, onLogout, onBack, onAdmin }) {
   const [nick, setNick] = useState(user.nickname);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -2605,6 +2605,13 @@ function Profile({ user, onUser, onLogout, onBack }) {
         </div>
       )}
 
+      {/* 관리자(ADMIN_EMAIL 계정)에게만 보인다. 서버가 세션으로 판단한 값이다. */}
+      {user.admin && (
+        <div className="px-5 mt-5">
+          <button onClick={onAdmin} className="w-full bg-gray-900 text-white font-bold py-3.5 rounded-xl press">🛠 관리자 — 가입자 관리</button>
+        </div>
+      )}
+
       <div className="px-5 mt-5 space-y-2.5">
         <button onClick={logout} className="w-full bg-white border border-gray-200 text-gray-700 font-bold py-3.5 rounded-xl press">로그아웃</button>
         <button onClick={del} className="w-full text-[13px] text-gray-400 py-2">회원 탈퇴</button>
@@ -2613,7 +2620,119 @@ function Profile({ user, onUser, onLogout, onBack }) {
   );
 }
 
-function AccountScreen({ user, onAuthed, onUser, onLogout, onBack }) {
+/* ============================================================ 관리자 화면 ============================================================ */
+/* 가입자 통계 + 목록 + 검색 + 계정 삭제. ADMIN_EMAIL 계정으로 로그인했을 때만 열린다.
+   접근 통제는 서버(/api/admin/*)가 세션으로 하고, 이 화면은 그 결과를 보여줄 뿐이다. */
+function AdminScreen({ onBack }) {
+  const [stats, setStats] = useState(null);
+  const [list, setList] = useState({ total: 0, users: [] });
+  const [q, setQ] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [err, setErr] = useState("");
+  const LIMIT = 50;
+
+  const load = async (query = q, off = offset) => {
+    const s = await api("GET", "/api/admin/stats");
+    if (!s.ok) { setErr(s.error || "관리자 권한이 없어요."); return; }
+    setStats({ ...s.stats, storage: s.storage });
+    const u = await api("GET", `/api/admin/users?limit=${LIMIT}&offset=${off}&q=${encodeURIComponent(query)}`);
+    if (u.ok) setList({ total: u.total, users: u.users });
+  };
+  useEffect(() => { load("", 0); }, []);
+
+  const search = () => { setOffset(0); load(q, 0); };
+  const page = (d) => { const off = Math.max(0, offset + d * LIMIT); setOffset(off); load(q, off); };
+  const del = async (u) => {
+    if (!window.confirm(`${u.email} 계정을 삭제할까요? 되돌릴 수 없어요.`)) return;
+    const d = await api("DELETE", "/api/admin/users/" + u.id);
+    if (d.ok) load(); else alert(d.error || "삭제에 실패했어요.");
+  };
+  const day = (ts) => (ts ? new Date(ts).toLocaleDateString("ko-KR", { year: "2-digit", month: "2-digit", day: "2-digit" }) : "—");
+
+  if (err) return (
+    <div className="pb-24 bg-gray-50 min-h-screen">
+      <TopBar onBack={onBack} label="프로필" />
+      <p className="px-5 pt-10 text-center text-gray-500">{err}</p>
+    </div>
+  );
+
+  return (
+    <div className="pb-24 bg-gray-50 min-h-screen">
+      <TopBar onBack={onBack} label="프로필" />
+      <PageHead tag="관리자" title="가입자 관리" sub={stats ? `저장소 ${stats.storage}` : "불러오는 중…"} />
+
+      {/* 통계 */}
+      <div className="px-5 mt-2 grid grid-cols-3 gap-2">
+        {[["전체 가입", stats && stats.total], ["최근 7일", stats && stats.last7d], ["최근 24시간", stats && stats.last24h]].map(([label, v]) => (
+          <div key={label} className="bg-white rounded-2xl py-4 text-center shadow-card">
+            <div className="text-2xl font-extrabold text-gray-900">{v == null ? "—" : v}</div>
+            <div className="text-[11px] text-gray-400 mt-0.5">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* MBTI 분포 */}
+      {stats && stats.mbti.length > 0 && (
+        <div className="bg-white px-5 py-4 mt-3">
+          <div className="text-[13px] font-bold text-gray-600">알바 MBTI 유형 분포</div>
+          <div className="mt-2.5 space-y-1.5">
+            {stats.mbti.slice(0, 8).map((m) => {
+              const top = stats.mbti[0].n || 1;
+              const p = PERSONAS[m.code];
+              return (
+                <div key={m.code} className="flex items-center gap-2">
+                  <div className="w-24 shrink-0 text-[12px] font-bold text-gray-700">{p ? p.emoji : "🧬"} {m.code}</div>
+                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-brand rounded-full" style={{ width: Math.round((m.n / top) * 100) + "%" }} />
+                  </div>
+                  <div className="w-7 text-right text-[12px] font-bold text-gray-500">{m.n}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 검색 */}
+      <div className="px-5 mt-3 flex gap-2">
+        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()}
+          placeholder="이메일·닉네임 검색"
+          className="flex-1 min-w-0 px-4 py-2.5 text-[14px] bg-white border border-gray-200 rounded-xl outline-none focus:border-brand" />
+        <button onClick={search} className="px-4 bg-gray-900 text-white font-bold rounded-xl press text-[14px] shrink-0">검색</button>
+      </div>
+
+      {/* 목록 */}
+      <div className="bg-white mt-3 divide-y divide-gray-100">
+        {list.users.length === 0 && <p className="text-center text-sm text-gray-400 py-10">가입자가 없어요.</p>}
+        {list.users.map((u) => (
+          <div key={u.id} className="px-5 py-3 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-brandLt text-brand grid place-items-center font-bold shrink-0">{(u.nickname || "?").slice(0, 1)}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[14px] font-bold text-gray-900 truncate">{u.nickname} <span className="text-[11px] font-normal text-gray-400">#{u.id}</span></div>
+              <div className="text-[12px] text-gray-500 truncate">{u.email}</div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-[12px] font-bold text-gray-700">{u.mbti || "—"}</div>
+              <div className="text-[11px] text-gray-400">{day(u.createdAt)}</div>
+            </div>
+            <button onClick={() => del(u)} className="text-[12px] text-red-500 font-semibold px-2 py-1 shrink-0">삭제</button>
+          </div>
+        ))}
+      </div>
+
+      {/* 페이지 */}
+      {list.total > LIMIT && (
+        <div className="px-5 mt-4 flex items-center justify-between">
+          <button disabled={offset === 0} onClick={() => page(-1)} className="px-4 py-2 text-[13px] font-bold text-gray-600 disabled:text-gray-300">‹ 이전</button>
+          <span className="text-[12px] text-gray-400">{offset + 1}–{Math.min(offset + LIMIT, list.total)} / {list.total}</span>
+          <button disabled={offset + LIMIT >= list.total} onClick={() => page(1)} className="px-4 py-2 text-[13px] font-bold text-gray-600 disabled:text-gray-300">다음 ›</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccountScreen({ user, onAuthed, onUser, onLogout, onBack, onAdmin }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -2630,7 +2749,7 @@ function AccountScreen({ user, onAuthed, onUser, onLogout, onBack }) {
     if (d.ok && d.user) onAuthed(d.user);
     else setErr(d.error || "문제가 발생했어요.");
   };
-  if (user) return <Profile user={user} onUser={onUser} onLogout={onLogout} onBack={onBack} />;
+  if (user) return <Profile user={user} onUser={onUser} onLogout={onLogout} onBack={onBack} onAdmin={onAdmin} />;
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
       <TopBar onBack={onBack} label="홈" />
@@ -2727,7 +2846,7 @@ const HOME_NAV = { tab: "home", overlay: null, guide: null, detailFrom: "home", 
 
 function App() {
   const [tab, setTab] = useState("home");          // home | types | guideList | calc | faq
-  const [overlay, setOverlay] = useState(null);     // null | quiz | result | detail (탭바 숨김)
+  const [overlay, setOverlay] = useState(null);     // null | quiz | result | detail | account | admin (탭바 숨김)
   const [result, setResult] = useState(LS.get("result", null));
   const [guide, setGuide] = useState(null);
   const [detailFrom, setDetailFrom] = useState("home"); // 탭 key 또는 "result"
@@ -2774,6 +2893,8 @@ function App() {
       if (d && d.user) {
         setUser(d.user);
         if (d.user.result && d.user.result.code) { setResult(d.user.result); LS.set("result", d.user.result); }
+        // albamates.com/#admin 으로 관리자 화면에 바로 들어간다(관리자 계정일 때만).
+        if (d.user.admin && window.location.hash === "#admin") go({ overlay: "admin" });
       }
       setAuthReady(true);
       window.dispatchEvent(new Event("app-ready"));
@@ -2803,7 +2924,8 @@ function App() {
       {overlay === "result" && result &&
         <Result result={result} onRetry={() => go({ overlay: "quiz" })} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")} />}
       {overlay === "detail" && guide && <Guide target={guide} onBack={back} backLabel={detailFrom === "result" ? "‹ 결과로" : "‹ 목록으로"} />}
-      {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={back} />}
+      {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={back} onAdmin={() => go({ overlay: "admin" })} />}
+      {overlay === "admin" && user.admin && <AdminScreen onBack={back} />}
 
       {/* 탭 콘텐츠 */}
       {!overlay && tab === "home" && <Home onGuide={(t) => openGuide(t, "home")} onMbti={() => goTab("mbti")} onNav={goTab} onCat={goCat} onCalc={() => goTab("calc")} onAccount={() => go({ overlay: "account" })} user={user} prev={result} />}

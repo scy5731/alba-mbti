@@ -29,3 +29,6 @@ services:
       # 세션 서명 키 — Render가 한 번 생성해 배포 간 유지(재배포해도 로그인 유지).
       - key: SESSION_SECRET
         generateValue: true
+      # 관리자 계정 이메일 — 레포에 넣지 않고 대시보드에서 입력(sync:false)
+      - key: ADMIN_EMAIL
+        sync: false
