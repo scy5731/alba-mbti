@@ -40,10 +40,52 @@ function makePgStore(url) {
       )`;
   // 이미 만들어진 테이블에는 avatar 가 없다 — 기동할 때 붙인다.
   const MIG = "ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT";
+  // 커뮤니티. 사용자가 지워지면 그 사람의 글·댓글·좋아요도 함께 지운다(ON DELETE CASCADE).
+  const COMMUNITY_DDL = [
+    `CREATE TABLE IF NOT EXISTS posts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        category TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        anon BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        updated_at TIMESTAMPTZ
+      )`,
+    `CREATE TABLE IF NOT EXISTS comments (
+        id SERIAL PRIMARY KEY,
+        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        body TEXT NOT NULL,
+        anon BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )`,
+    `CREATE TABLE IF NOT EXISTS likes (
+        post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ DEFAULT now(),
+        PRIMARY KEY (post_id, user_id)
+      )`,
+    `CREATE TABLE IF NOT EXISTS reports (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        target_type TEXT NOT NULL,
+        target_id INTEGER NOT NULL,
+        reason TEXT,
+        resolved BOOLEAN DEFAULT false,
+        created_at TIMESTAMPTZ DEFAULT now()
+      )`,
+    `CREATE INDEX IF NOT EXISTS posts_created_idx ON posts (created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS comments_post_idx ON comments (post_id)`,
+  ];
   return {
     kind: "postgres",
     async init() {
-      const run = async () => { await pool.query(DDL); await pool.query(MIG); };
+      const run = async () => {
+        await pool.query(DDL);
+        await pool.query(MIG);
+        for (const q of COMMUNITY_DDL) await pool.query(q);
+      };
       try { await run(); }
       catch (e) {
         // Render 내부 연결 등 SSL 미지원 엔드포인트면 SSL 없이 재시도
@@ -97,12 +139,112 @@ function makePgStore(url) {
         "SELECT result->>'code' AS code, count(*)::int AS n FROM users WHERE result->>'code' IS NOT NULL GROUP BY 1 ORDER BY 2 DESC");
       return { total: t[0].n, last7d: w[0].n, last24h: d[0].n, mbti: m.map((r) => ({ code: r.code, n: r.n })) };
     },
+
+    /* ============================ 커뮤니티 ============================ */
+    async listPosts({ category = "", limit = 20, offset = 0, userId = null } = {}) {
+      const where = category ? "WHERE p.category = $1" : "";
+      const a = category ? [category] : [];
+      const { rows } = await pool.query(
+        `SELECT p.*, u.nickname, u.avatar,
+                (SELECT count(*)::int FROM comments c WHERE c.post_id = p.id) AS comments,
+                (SELECT count(*)::int FROM likes l WHERE l.post_id = p.id) AS likes,
+                EXISTS(SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = $${a.length + 3}) AS liked
+         FROM posts p JOIN users u ON u.id = p.user_id
+         ${where} ORDER BY p.created_at DESC LIMIT $${a.length + 1} OFFSET $${a.length + 2}`,
+        [...a, limit, offset, userId || 0]);
+      const { rows: c } = await pool.query(`SELECT count(*)::int AS n FROM posts p ${where}`, a);
+      return { total: c[0].n, posts: rows.map(mapPost) };
+    },
+    async getPost(id, userId = null) {
+      const { rows } = await pool.query(
+        `SELECT p.*, u.nickname, u.avatar,
+                (SELECT count(*)::int FROM comments c WHERE c.post_id = p.id) AS comments,
+                (SELECT count(*)::int FROM likes l WHERE l.post_id = p.id) AS likes,
+                EXISTS(SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = $2) AS liked
+         FROM posts p JOIN users u ON u.id = p.user_id WHERE p.id = $1`, [id, userId || 0]);
+      return rows[0] ? mapPost(rows[0]) : null;
+    },
+    async createPost({ userId, category, title, body, anon }) {
+      const { rows } = await pool.query(
+        "INSERT INTO posts(user_id,category,title,body,anon) VALUES($1,$2,$3,$4,$5) RETURNING id", [userId, category, title, body, !!anon]);
+      return this.getPost(rows[0].id, userId);
+    },
+    async updatePost(id, { title, body, category }) {
+      const { rows } = await pool.query(
+        "UPDATE posts SET title=$1, body=$2, category=$3, updated_at=now() WHERE id=$4 RETURNING id", [title, body, category, id]);
+      return rows[0] ? this.getPost(id) : null;
+    },
+    async removePost(id) { await pool.query("DELETE FROM posts WHERE id=$1", [id]); },
+    async toggleLike(postId, userId) {
+      const { rowCount } = await pool.query("DELETE FROM likes WHERE post_id=$1 AND user_id=$2", [postId, userId]);
+      if (!rowCount) await pool.query("INSERT INTO likes(post_id,user_id) VALUES($1,$2) ON CONFLICT DO NOTHING", [postId, userId]);
+      const { rows } = await pool.query("SELECT count(*)::int AS n FROM likes WHERE post_id=$1", [postId]);
+      return { liked: !rowCount, likes: rows[0].n };
+    },
+    async listComments(postId) {
+      const { rows } = await pool.query(
+        `SELECT c.*, u.nickname, u.avatar FROM comments c JOIN users u ON u.id = c.user_id
+         WHERE c.post_id = $1 ORDER BY c.created_at ASC`, [postId]);
+      return rows.map(mapComment);
+    },
+    async createComment({ postId, userId, body, anon }) {
+      const { rows } = await pool.query(
+        "INSERT INTO comments(post_id,user_id,body,anon) VALUES($1,$2,$3,$4) RETURNING id", [postId, userId, body, !!anon]);
+      const { rows: r } = await pool.query(
+        `SELECT c.*, u.nickname, u.avatar FROM comments c JOIN users u ON u.id=c.user_id WHERE c.id=$1`, [rows[0].id]);
+      return mapComment(r[0]);
+    },
+    async getComment(id) {
+      const { rows } = await pool.query(`SELECT c.*, u.nickname, u.avatar FROM comments c JOIN users u ON u.id=c.user_id WHERE c.id=$1`, [id]);
+      return rows[0] ? mapComment(rows[0]) : null;
+    },
+    async removeComment(id) { await pool.query("DELETE FROM comments WHERE id=$1", [id]); },
+    async createReport({ userId, targetType, targetId, reason }) {
+      await pool.query(
+        "INSERT INTO reports(user_id,target_type,target_id,reason) VALUES($1,$2,$3,$4)", [userId, targetType, targetId, reason]);
+    },
+    async listReports() {
+      const { rows } = await pool.query(
+        `SELECT r.*, u.nickname AS reporter FROM reports r LEFT JOIN users u ON u.id = r.user_id
+         WHERE NOT r.resolved ORDER BY r.created_at DESC LIMIT 100`);
+      return rows.map((r) => ({
+        id: r.id, targetType: r.target_type, targetId: r.target_id, reason: r.reason,
+        reporter: r.reporter, createdAt: r.created_at ? new Date(r.created_at).getTime() : null,
+      }));
+    },
+    async resolveReport(id) { await pool.query("UPDATE reports SET resolved=true WHERE id=$1", [id]); },
   };
 }
 
+/* 게시글/댓글 행 → API 표현. 익명 글이면 작성자 정보를 여기서 지운다(응답에 아예 싣지 않는다). */
+const mapPost = (r) => ({
+  id: r.id, category: r.category, title: r.title, body: r.body, anon: !!r.anon,
+  userId: r.user_id,
+  author: r.anon ? null : { nickname: r.nickname, avatar: r.avatar || null },
+  comments: r.comments || 0, likes: r.likes || 0, liked: !!r.liked,
+  createdAt: r.created_at ? new Date(r.created_at).getTime() : (r.createdAt || null),
+  updatedAt: r.updated_at ? new Date(r.updated_at).getTime() : (r.updatedAt || null),
+});
+const mapComment = (r) => ({
+  id: r.id, postId: r.post_id, body: r.body, anon: !!r.anon,
+  userId: r.user_id,
+  author: r.anon ? null : { nickname: r.nickname, avatar: r.avatar || null },
+  createdAt: r.created_at ? new Date(r.created_at).getTime() : (r.createdAt || null),
+});
+
 function makeFileStore(dbPath) {
   let db;
-  const load = () => { try { db = JSON.parse(fs.readFileSync(dbPath, "utf8")); } catch (e) { db = { users: [], nextId: 1 }; } };
+  const load = () => {
+    try { db = JSON.parse(fs.readFileSync(dbPath, "utf8")); } catch (e) { db = { users: [], nextId: 1 }; }
+    // 커뮤니티 테이블(파일 저장소 판) — 없으면 만들어 준다.
+    db.posts = db.posts || [];
+    db.comments = db.comments || [];
+    db.likes = db.likes || [];        // { postId, userId }
+    db.reports = db.reports || [];
+    db.nextPostId = db.nextPostId || 1;
+    db.nextCommentId = db.nextCommentId || 1;
+    db.nextReportId = db.nextReportId || 1;
+  };
   const save = () => { fs.mkdirSync(path.dirname(dbPath), { recursive: true }); const tmp = dbPath + ".tmp"; fs.writeFileSync(tmp, JSON.stringify(db)); fs.renameSync(tmp, dbPath); };
   const clone = (u) => (u ? JSON.parse(JSON.stringify(u)) : null);
   load();
@@ -120,8 +262,82 @@ function makeFileStore(dbPath) {
     },
     async updatePassword(id, passHash) { const u = db.users.find((x) => x.id === id); if (!u) return null; u.passHash = passHash; save(); return clone(u); },
     async updateResult(id, result) { const u = db.users.find((x) => x.id === id); if (!u) return null; u.result = result || null; save(); return clone(u); },
-    async remove(id) { db.users = db.users.filter((x) => x.id !== id); save(); },
+    async remove(id) {
+      db.users = db.users.filter((x) => x.id !== id);
+      // Postgres 의 ON DELETE CASCADE 와 같은 정리를 손으로 해준다.
+      const gone = new Set(db.posts.filter((p) => p.userId === id).map((p) => p.id));
+      db.posts = db.posts.filter((p) => p.userId !== id);
+      db.comments = db.comments.filter((c) => c.userId !== id && !gone.has(c.postId));
+      db.likes = db.likes.filter((l) => l.userId !== id && !gone.has(l.postId));
+      save();
+    },
     async count() { return db.users.length; },
+
+    /* ============================ 커뮤니티 ============================ */
+    async listPosts({ category = "", limit = 20, offset = 0, userId = null } = {}) {
+      const hit = db.posts.filter((p) => !category || p.category === category);
+      const sorted = [...hit].sort((a, b) => b.createdAt - a.createdAt);
+      return { total: hit.length, posts: sorted.slice(offset, offset + limit).map((p) => this._post(p, userId)) };
+    },
+    _post(p, userId) {
+      const u = db.users.find((x) => x.id === p.userId);
+      return mapPost({
+        ...p, user_id: p.userId, created_at: null, createdAt: p.createdAt, updatedAt: p.updatedAt || null,
+        nickname: u ? u.nickname : "(탈퇴한 사용자)", avatar: u ? u.avatar : null,
+        comments: db.comments.filter((c) => c.postId === p.id).length,
+        likes: db.likes.filter((l) => l.postId === p.id).length,
+        liked: !!userId && db.likes.some((l) => l.postId === p.id && l.userId === userId),
+      });
+    },
+    async getPost(id, userId = null) { const p = db.posts.find((x) => x.id === id); return p ? this._post(p, userId) : null; },
+    async createPost({ userId, category, title, body, anon }) {
+      const p = { id: db.nextPostId++, userId, category, title, body, anon: !!anon, createdAt: Date.now(), updatedAt: null };
+      db.posts.push(p); save();
+      return this._post(p, userId);
+    },
+    async updatePost(id, { title, body, category }) {
+      const p = db.posts.find((x) => x.id === id); if (!p) return null;
+      p.title = title; p.body = body; p.category = category; p.updatedAt = Date.now();
+      save(); return this._post(p, p.userId);
+    },
+    async removePost(id) {
+      db.posts = db.posts.filter((p) => p.id !== id);
+      db.comments = db.comments.filter((c) => c.postId !== id);
+      db.likes = db.likes.filter((l) => l.postId !== id);
+      save();
+    },
+    async toggleLike(postId, userId) {
+      const i = db.likes.findIndex((l) => l.postId === postId && l.userId === userId);
+      if (i >= 0) db.likes.splice(i, 1); else db.likes.push({ postId, userId });
+      save();
+      return { liked: i < 0, likes: db.likes.filter((l) => l.postId === postId).length };
+    },
+    _comment(c) {
+      const u = db.users.find((x) => x.id === c.userId);
+      return mapComment({ ...c, post_id: c.postId, user_id: c.userId, createdAt: c.createdAt,
+        nickname: u ? u.nickname : "(탈퇴한 사용자)", avatar: u ? u.avatar : null });
+    },
+    async listComments(postId) {
+      return db.comments.filter((c) => c.postId === postId).sort((a, b) => a.createdAt - b.createdAt).map((c) => this._comment(c));
+    },
+    async createComment({ postId, userId, body, anon }) {
+      const c = { id: db.nextCommentId++, postId, userId, body, anon: !!anon, createdAt: Date.now() };
+      db.comments.push(c); save();
+      return this._comment(c);
+    },
+    async getComment(id) { const c = db.comments.find((x) => x.id === id); return c ? this._comment(c) : null; },
+    async removeComment(id) { db.comments = db.comments.filter((c) => c.id !== id); save(); },
+    async createReport({ userId, targetType, targetId, reason }) {
+      db.reports.push({ id: db.nextReportId++, userId, targetType, targetId, reason, resolved: false, createdAt: Date.now() });
+      save();
+    },
+    async listReports() {
+      return db.reports.filter((r) => !r.resolved).sort((a, b) => b.createdAt - a.createdAt).slice(0, 100).map((r) => {
+        const u = db.users.find((x) => x.id === r.userId);
+        return { ...r, reporter: u ? u.nickname : null };
+      });
+    },
+    async resolveReport(id) { const r = db.reports.find((x) => x.id === id); if (r) { r.resolved = true; save(); } },
 
     /* ---- 관리자 조회 ---- */
     async listUsers({ q = "", limit = 50, offset = 0 } = {}) {
@@ -295,7 +511,122 @@ app.delete("/api/auth/account", requireAuth, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* ============================================================ 커뮤니티 ============================================================
+   글·댓글은 로그인해야 쓸 수 있고, 수정·삭제는 글쓴이 본인 또는 관리자만 가능하다.
+   익명 글은 응답에서 작성자 정보를 아예 빼고 내려보낸다(프론트에서 숨기는 게 아니다).
+   ================================================================================================================================ */
+const CATEGORIES = ["question", "review", "tip", "free"];
+const TITLE_MAX = 60, BODY_MAX = 4000, COMMENT_MAX = 1000;
+
+// 글쓴이 본인 또는 관리자만 수정·삭제할 수 있다. 익명 글이어도 서버는 소유자를 알고 있다.
+const canEdit = (user, ownerId) => user.id === ownerId || isAdmin(user);
+
+// 응답에서 소유자 ID 를 빼고 내려보낸다. userId 를 그대로 실어 보내면 익명 글이라도
+// 같은 userId 를 가진 다른 글(실명 글)과 대조해 작성자를 알아낼 수 있다.
+// 프론트가 필요한 건 "내가 수정/삭제할 수 있는가"뿐이므로 그 플래그만 준다.
+const viewPost = (p, user) => p && ({ ...p, userId: undefined, mine: !!user && p.userId === user.id, canEdit: !!user && canEdit(user, p.userId) });
+const viewComment = (c, user) => c && ({ ...c, userId: undefined, mine: !!user && c.userId === user.id, canEdit: !!user && canEdit(user, c.userId) });
+
+app.get("/api/posts", ah(async (req, res) => {
+  const me = await currentUser(req);
+  const category = CATEGORIES.includes(String(req.query.category)) ? String(req.query.category) : "";
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  const { total, posts } = await store.listPosts({ category, limit, offset, userId: me ? me.id : null });
+  res.json({ ok: true, total, posts: posts.map((p) => viewPost(p, me)) });
+}));
+
+app.get("/api/posts/:id", ah(async (req, res) => {
+  const me = await currentUser(req);
+  const post = await store.getPost(parseInt(req.params.id, 10), me ? me.id : null);
+  if (!post) return res.status(404).json({ ok: false, error: "없는 글이에요." });
+  const comments = await store.listComments(post.id);
+  res.json({ ok: true, post: viewPost(post, me), comments: comments.map((c) => viewComment(c, me)) });
+}));
+
+app.post("/api/posts", requireAuth, ah(async (req, res) => {
+  const { category, title, body, anon } = req.body || {};
+  if (!CATEGORIES.includes(String(category))) return res.status(400).json({ ok: false, error: "카테고리를 골라 주세요." });
+  const t = String(title || "").trim(), b = String(body || "").trim();
+  if (!t) return res.status(400).json({ ok: false, error: "제목을 입력해 주세요." });
+  if (!b) return res.status(400).json({ ok: false, error: "내용을 입력해 주세요." });
+  if (t.length > TITLE_MAX || b.length > BODY_MAX) return res.status(400).json({ ok: false, error: "글이 너무 길어요." });
+  const post = await store.createPost({ userId: req.user.id, category: String(category), title: t, body: b, anon: !!anon });
+  res.json({ ok: true, post: viewPost(post, req.user) });
+}));
+
+app.patch("/api/posts/:id", requireAuth, ah(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const post = await store.getPost(id);
+  if (!post) return res.status(404).json({ ok: false, error: "없는 글이에요." });
+  if (!canEdit(req.user, post.userId)) return res.status(403).json({ ok: false, error: "내 글만 수정할 수 있어요." });
+  const t = String(req.body.title ?? post.title).trim(), b = String(req.body.body ?? post.body).trim();
+  const c = CATEGORIES.includes(String(req.body.category)) ? String(req.body.category) : post.category;
+  if (!t || !b) return res.status(400).json({ ok: false, error: "제목과 내용을 입력해 주세요." });
+  if (t.length > TITLE_MAX || b.length > BODY_MAX) return res.status(400).json({ ok: false, error: "글이 너무 길어요." });
+  res.json({ ok: true, post: viewPost(await store.updatePost(id, { title: t, body: b, category: c }), req.user) });
+}));
+
+app.delete("/api/posts/:id", requireAuth, ah(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const post = await store.getPost(id);
+  if (!post) return res.status(404).json({ ok: false, error: "없는 글이에요." });
+  if (!canEdit(req.user, post.userId)) return res.status(403).json({ ok: false, error: "내 글만 지울 수 있어요." });
+  await store.removePost(id);
+  res.json({ ok: true });
+}));
+
+app.post("/api/posts/:id/like", requireAuth, ah(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!(await store.getPost(id))) return res.status(404).json({ ok: false, error: "없는 글이에요." });
+  res.json({ ok: true, ...(await store.toggleLike(id, req.user.id)) });
+}));
+
+app.post("/api/posts/:id/comments", requireAuth, ah(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!(await store.getPost(id))) return res.status(404).json({ ok: false, error: "없는 글이에요." });
+  const b = String((req.body || {}).body || "").trim();
+  if (!b) return res.status(400).json({ ok: false, error: "댓글을 입력해 주세요." });
+  if (b.length > COMMENT_MAX) return res.status(400).json({ ok: false, error: "댓글이 너무 길어요." });
+  const comment = await store.createComment({ postId: id, userId: req.user.id, body: b, anon: !!(req.body || {}).anon });
+  res.json({ ok: true, comment: viewComment(comment, req.user) });
+}));
+
+app.delete("/api/comments/:id", requireAuth, ah(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  const c = await store.getComment(id);
+  if (!c) return res.status(404).json({ ok: false, error: "없는 댓글이에요." });
+  if (!canEdit(req.user, c.userId)) return res.status(403).json({ ok: false, error: "내 댓글만 지울 수 있어요." });
+  await store.removeComment(id);
+  res.json({ ok: true });
+}));
+
+app.post("/api/reports", requireAuth, ah(async (req, res) => {
+  const { targetType, targetId, reason } = req.body || {};
+  if (!["post", "comment"].includes(String(targetType))) return res.status(400).json({ ok: false, error: "잘못된 신고예요." });
+  const id = parseInt(targetId, 10);
+  const target = String(targetType) === "post" ? await store.getPost(id) : await store.getComment(id);
+  if (!target) return res.status(404).json({ ok: false, error: "없는 대상이에요." });
+  await store.createReport({ userId: req.user.id, targetType: String(targetType), targetId: id, reason: String(reason || "").slice(0, 200) });
+  res.json({ ok: true });
+}));
+
 /* ============================================================ 관리자 (ADMIN_EMAIL 계정만) ============================================================ */
+app.get("/api/admin/reports", requireAdmin, ah(async (req, res) => {
+  const reports = await store.listReports();
+  // 신고 대상의 내용을 함께 실어 준다 — 관리자가 화면을 옮겨 다니지 않고 바로 판단할 수 있게.
+  const withTarget = await Promise.all(reports.map(async (r) => ({
+    ...r,
+    target: viewPost(r.targetType === "post" ? await store.getPost(r.targetId) : await store.getComment(r.targetId), req.user),
+  })));
+  res.json({ ok: true, reports: withTarget });
+}));
+
+app.post("/api/admin/reports/:id/resolve", requireAdmin, ah(async (req, res) => {
+  await store.resolveReport(parseInt(req.params.id, 10));
+  res.json({ ok: true });
+}));
+
 app.get("/api/admin/stats", requireAdmin, ah(async (req, res) => {
   res.json({ ok: true, stats: await store.stats(), storage: store.kind });
 }));

@@ -1609,6 +1609,7 @@ function FaqTab() {
 /* 하단 탭 내비게이션 (5개 메뉴) */
 const TABS = [
   { key:"home", icon:"🏠", label:"홈" },
+  { key:"community", icon:"💬", label:"커뮤니티" },
   { key:"types", icon:"🧭", label:"유형" },
   { key:"guideList", icon:"📚", label:"가이드" },
   { key:"calc", icon:"🧮", label:"계산기" },
@@ -2758,6 +2759,7 @@ function Profile({ user, onUser, onLogout, onBack, onAdmin, onRetake, onViewResu
 function AdminScreen({ onBack }) {
   const [stats, setStats] = useState(null);
   const [list, setList] = useState({ total: 0, users: [] });
+  const [reports, setReports] = useState([]);
   const [q, setQ] = useState("");
   const [offset, setOffset] = useState(0);
   const [err, setErr] = useState("");
@@ -2769,8 +2771,21 @@ function AdminScreen({ onBack }) {
     setStats({ ...s.stats, storage: s.storage });
     const u = await api("GET", `/api/admin/users?limit=${LIMIT}&offset=${off}&q=${encodeURIComponent(query)}`);
     if (u.ok) setList({ total: u.total, users: u.users });
+    const r = await api("GET", "/api/admin/reports");
+    if (r.ok) setReports(r.reports);
   };
   useEffect(() => { load("", 0); }, []);
+
+  // 신고 처리 — 내용을 지우거나(관리자 권한으로), 문제없으면 '처리 완료'로 닫는다.
+  const delTarget = async (r) => {
+    if (!window.confirm("신고된 내용을 삭제할까요?")) return;
+    const url = r.targetType === "post" ? "/api/posts/" + r.targetId : "/api/comments/" + r.targetId;
+    const d = await api("DELETE", url);
+    if (!d.ok) return alert(d.error || "삭제에 실패했어요.");
+    await api("POST", `/api/admin/reports/${r.id}/resolve`);
+    load();
+  };
+  const resolve = async (id) => { await api("POST", `/api/admin/reports/${id}/resolve`); load(); };
 
   const search = () => { setOffset(0); load(q, 0); };
   const page = (d) => { const off = Math.max(0, offset + d * LIMIT); setOffset(off); load(q, off); };
@@ -2821,6 +2836,33 @@ function AdminScreen({ onBack }) {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* 신고함 — 처리되지 않은 신고 */}
+      {reports.length > 0 && (
+        <div className="bg-white px-5 py-4 mt-3">
+          <div className="text-[13px] font-bold text-red-500">🚨 처리 안 된 신고 {reports.length}건</div>
+          <div className="mt-2.5 divide-y divide-gray-50">
+            {reports.map((r) => (
+              <div key={r.id} className="py-3">
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className="font-bold text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">{r.targetType === "post" ? "게시글" : "댓글"}</span>
+                  <span className="text-gray-400">{r.reporter || "?"} 신고 · {ago(r.createdAt)}</span>
+                </div>
+                <div className="text-[13px] text-gray-800 mt-1 font-semibold">사유: {r.reason || "(없음)"}</div>
+                <div className="text-[13px] text-gray-500 mt-0.5 line-clamp-2">
+                  {r.target ? (r.target.title || r.target.body) : "(이미 삭제된 내용)"}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  {r.target && (
+                    <button onClick={() => delTarget(r)} className="px-3 py-1.5 rounded-lg bg-red-50 text-red-600 font-bold text-[12px] press">내용 삭제</button>
+                  )}
+                  <button onClick={() => resolve(r.id)} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 font-bold text-[12px] press">처리 완료</button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -2974,6 +3016,295 @@ function AuthGate({ onAuthed }) {
   );
 }
 
+/* ============================================================ 커뮤니티 ============================================================
+   카테고리 게시판(질문·후기·꿀팁·자유) + 댓글 + 좋아요 + 신고.
+   글마다 '익명으로' 를 켤 수 있다 — 서버가 응답에서 작성자를 아예 빼고 내려준다. */
+const BOARDS = [
+  { key: "question", label: "질문", emoji: "❓" },
+  { key: "review", label: "후기", emoji: "⭐" },
+  { key: "tip", label: "꿀팁", emoji: "💡" },
+  { key: "free", label: "자유", emoji: "💬" },
+];
+const catOf = (k) => BOARDS.find((c) => c.key === k) || BOARDS[3];
+
+function ago(ts) {
+  if (!ts) return "";
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return "방금";
+  if (s < 3600) return Math.floor(s / 60) + "분 전";
+  if (s < 86400) return Math.floor(s / 3600) + "시간 전";
+  if (s < 7 * 86400) return Math.floor(s / 86400) + "일 전";
+  return new Date(ts).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+}
+
+/* 작성자 표시 — 익명 글이면 서버가 author 를 안 준다. */
+function Author({ author, anon }) {
+  return (
+    <span className="flex items-center gap-1.5 min-w-0">
+      <span className="w-5 h-5 rounded-full bg-gray-100 grid place-items-center text-[11px] shrink-0">
+        {anon ? "🕶" : (author && author.avatar) || (author && author.nickname || "?").slice(0, 1)}
+      </span>
+      <span className="truncate">{anon ? "익명" : (author ? author.nickname : "(탈퇴한 사용자)")}</span>
+    </span>
+  );
+}
+
+function CommunityTab({ onOpen, onWrite, refreshKey }) {
+  const [cat, setCat] = useState("");
+  const [data, setData] = useState({ total: 0, posts: [] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api("GET", "/api/posts?limit=50" + (cat ? "&category=" + cat : "")).then((d) => {
+      if (d.ok) setData({ total: d.total, posts: d.posts });
+      setLoading(false);
+    });
+  }, [cat, refreshKey]);
+
+  return (
+    <div className="pb-24 bg-gray-50 min-h-screen">
+      <PageHead tag="커뮤니티" title="알바 이야기" sub="궁금한 것, 겪은 것, 알게 된 것을 나눠요" />
+
+      {/* 카테고리 */}
+      <div className="bg-white px-5 py-3 flex gap-1.5 overflow-x-auto noscroll">
+        {[{ key: "", label: "전체", emoji: "" }, ...BOARDS].map((c) => (
+          <button key={c.key || "all"} onClick={() => setCat(c.key)}
+            className={"px-3.5 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap press transition " +
+              (cat === c.key ? "bg-brand text-white" : "bg-gray-100 text-gray-500")}>
+            {c.emoji} {c.label}
+          </button>
+        ))}
+      </div>
+
+      {/* 목록 */}
+      <div className="mt-2 bg-white divide-y divide-gray-100">
+        {loading && <p className="text-center text-sm text-gray-400 py-12">불러오는 중…</p>}
+        {!loading && data.posts.length === 0 && (
+          <div className="text-center py-14 px-8">
+            <div className="text-4xl">💬</div>
+            <p className="text-[15px] font-bold text-gray-700 mt-3">아직 글이 없어요</p>
+            <p className="text-[13px] text-gray-400 mt-1">첫 글을 남겨보세요. 익명으로도 쓸 수 있어요.</p>
+          </div>
+        )}
+        {!loading && data.posts.map((p) => {
+          const c = catOf(p.category);
+          return (
+            <button key={p.id} onClick={() => onOpen(p.id)} className="w-full text-left px-5 py-4 press">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-brand bg-brandLt px-2 py-0.5 rounded-full">{c.emoji} {c.label}</span>
+                <span className="text-[11px] text-gray-400">{ago(p.createdAt)}</span>
+              </div>
+              <div className="font-bold text-[15px] text-gray-900 mt-1.5 leading-snug">{p.title}</div>
+              <div className="text-[13px] text-gray-500 mt-1 line-clamp-2 whitespace-pre-wrap">{p.body}</div>
+              <div className="flex items-center gap-3 mt-2 text-[12px] text-gray-400">
+                <Author author={p.author} anon={p.anon} />
+                <span>💬 {p.comments}</span>
+                <span className={p.liked ? "text-brand font-bold" : ""}>{p.liked ? "❤️" : "🤍"} {p.likes}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 글쓰기 */}
+      <button onClick={() => onWrite(null)}
+        className="fixed bottom-20 left-1/2 translate-x-[calc(215px-100%)] max-[430px]:right-5 max-[430px]:left-auto max-[430px]:translate-x-0
+                   bg-brand text-white font-bold px-5 py-3.5 rounded-full shadow-soft press z-30">
+        ✏️ 글쓰기
+      </button>
+    </div>
+  );
+}
+
+function PostWrite({ initial, onDone, onBack }) {
+  const [cat, setCat] = useState(initial ? initial.category : "question");
+  const [title, setTitle] = useState(initial ? initial.title : "");
+  const [body, setBody] = useState(initial ? initial.body : "");
+  const [anon, setAnon] = useState(initial ? initial.anon : false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const editing = !!initial;
+
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true); setErr("");
+    const d = editing
+      ? await api("PATCH", "/api/posts/" + initial.id, { category: cat, title, body })
+      : await api("POST", "/api/posts", { category: cat, title, body, anon });
+    setBusy(false);
+    if (d.ok) onDone(d.post); else setErr(d.error || "저장에 실패했어요.");
+  };
+
+  return (
+    <div className="pb-24 bg-white min-h-screen">
+      <TopBar onBack={onBack} label="커뮤니티" />
+      <div className="px-5 pt-5">
+        <div className="flex gap-1.5">
+          {BOARDS.map((c) => (
+            <button key={c.key} onClick={() => setCat(c.key)}
+              className={"flex-1 py-2 rounded-xl text-[13px] font-bold press transition " +
+                (cat === c.key ? "bg-brand text-white" : "bg-gray-100 text-gray-500")}>
+              {c.emoji} {c.label}
+            </button>
+          ))}
+        </div>
+
+        <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={60} placeholder="제목"
+          className="w-full mt-4 px-1 py-3 text-[18px] font-bold border-b border-gray-100 outline-none focus:border-brand" />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={4000} rows={12}
+          placeholder="무슨 이야기를 나누고 싶나요?&#10;겪은 일, 궁금한 것, 알게 된 꿀팁 모두 좋아요."
+          className="w-full mt-2 px-1 py-2 text-[15px] leading-relaxed outline-none resize-none" />
+
+        {!editing && (
+          <button onClick={() => setAnon(!anon)} className="flex items-center gap-2.5 mt-2 press">
+            <span className={"w-11 h-6 rounded-full p-0.5 transition shrink-0 " + (anon ? "bg-brand" : "bg-gray-200")}>
+              <span className={"block w-5 h-5 bg-white rounded-full shadow transition-transform " + (anon ? "translate-x-5" : "")} />
+            </span>
+            <span className="text-[14px] text-gray-700 font-medium">🕶 익명으로 쓰기</span>
+          </button>
+        )}
+        {anon && !editing && <p className="text-[12px] text-gray-400 mt-1.5">닉네임이 표시되지 않아요. 임금체불·갑질처럼 민감한 이야기에 쓰세요.</p>}
+
+        {err && <p className="text-[13px] text-red-500 font-medium mt-3">{err}</p>}
+        <button disabled={busy || !title.trim() || !body.trim()} onClick={submit}
+          className="w-full mt-5 bg-brand disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold py-3.5 rounded-xl press">
+          {busy ? "올리는 중…" : (editing ? "수정 완료" : "올리기")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PostDetail({ id, onBack, onEdit, onDeleted, onChanged }) {
+  const [post, setPost] = useState(null);
+  const [comments, setComments] = useState([]);
+  const [text, setText] = useState("");
+  const [anon, setAnon] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [gone, setGone] = useState(false);
+
+  const load = async () => {
+    const d = await api("GET", "/api/posts/" + id);
+    if (d.ok) { setPost(d.post); setComments(d.comments); } else setGone(true);
+  };
+  useEffect(() => { load(); }, [id]);
+
+  const like = async () => {
+    const d = await api("POST", `/api/posts/${id}/like`);
+    if (d.ok) { setPost((p) => ({ ...p, liked: d.liked, likes: d.likes })); onChanged && onChanged(); }
+  };
+  const comment = async () => {
+    if (busy || !text.trim()) return;
+    setBusy(true);
+    const d = await api("POST", `/api/posts/${id}/comments`, { body: text, anon });
+    setBusy(false);
+    if (d.ok) { setComments((cs) => [...cs, d.comment]); setText(""); onChanged && onChanged(); }
+    else alert(d.error || "댓글 등록에 실패했어요.");
+  };
+  const delPost = async () => {
+    if (!window.confirm("이 글을 지울까요? 댓글도 함께 사라져요.")) return;
+    const d = await api("DELETE", "/api/posts/" + id);
+    if (d.ok) onDeleted(); else alert(d.error || "삭제에 실패했어요.");
+  };
+  const delComment = async (c) => {
+    if (!window.confirm("댓글을 지울까요?")) return;
+    const d = await api("DELETE", "/api/comments/" + c.id);
+    if (d.ok) { setComments((cs) => cs.filter((x) => x.id !== c.id)); onChanged && onChanged(); }
+  };
+  const report = async (type, targetId) => {
+    const reason = window.prompt("신고 사유를 적어주세요 (욕설, 광고, 허위정보 등)");
+    if (reason === null) return;
+    const d = await api("POST", "/api/reports", { targetType: type, targetId, reason });
+    alert(d.ok ? "신고했어요. 관리자가 확인할게요." : (d.error || "신고에 실패했어요."));
+  };
+
+  if (gone) return (
+    <div className="min-h-screen bg-gray-50">
+      <TopBar onBack={onBack} label="커뮤니티" />
+      <p className="text-center text-gray-500 pt-16">사라진 글이에요.</p>
+    </div>
+  );
+  if (!post) return (
+    <div className="min-h-screen bg-gray-50">
+      <TopBar onBack={onBack} label="커뮤니티" />
+      <p className="text-center text-gray-400 pt-16">불러오는 중…</p>
+    </div>
+  );
+
+  const c = catOf(post.category);
+  return (
+    <div className="pb-32 bg-gray-50 min-h-screen">
+      <TopBar onBack={onBack} label="커뮤니티" />
+
+      <div className="bg-white px-5 py-5">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-bold text-brand bg-brandLt px-2 py-0.5 rounded-full">{c.emoji} {c.label}</span>
+          <span className="text-[11px] text-gray-400">{ago(post.createdAt)}{post.updatedAt ? " · 수정됨" : ""}</span>
+        </div>
+        <h1 className="text-[20px] font-extrabold text-gray-900 mt-2 leading-snug">{post.title}</h1>
+        <div className="flex items-center gap-2 mt-2 text-[12px] text-gray-500">
+          <Author author={post.author} anon={post.anon} />
+        </div>
+        <p className="text-[15px] text-gray-800 leading-relaxed mt-4 whitespace-pre-wrap">{post.body}</p>
+
+        <div className="flex items-center gap-2 mt-5">
+          <button onClick={like}
+            className={"flex-1 py-2.5 rounded-xl font-bold text-[14px] press border " +
+              (post.liked ? "bg-brandLt border-brand text-brand" : "bg-white border-gray-200 text-gray-600")}>
+            {post.liked ? "❤️" : "🤍"} 좋아요 {post.likes}
+          </button>
+          {post.canEdit ? (
+            <>
+              {post.mine && <button onClick={() => onEdit(post)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-[14px] press">수정</button>}
+              <button onClick={delPost} className="px-4 py-2.5 rounded-xl border border-gray-200 text-red-500 font-bold text-[14px] press">삭제</button>
+            </>
+          ) : (
+            <button onClick={() => report("post", post.id)} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-400 font-bold text-[14px] press">신고</button>
+          )}
+        </div>
+      </div>
+
+      {/* 댓글 */}
+      <div className="bg-white mt-2 px-5 py-4">
+        <div className="text-[13px] font-bold text-gray-800">댓글 {comments.length}</div>
+        <div className="mt-3 divide-y divide-gray-50">
+          {comments.length === 0 && <p className="text-[13px] text-gray-400 py-4">첫 댓글을 남겨보세요.</p>}
+          {comments.map((cm) => (
+            <div key={cm.id} className="py-3">
+              <div className="flex items-center justify-between text-[12px] text-gray-500">
+                <Author author={cm.author} anon={cm.anon} />
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-gray-300">{ago(cm.createdAt)}</span>
+                  {cm.canEdit
+                    ? <button onClick={() => delComment(cm)} className="text-red-400 font-semibold">삭제</button>
+                    : <button onClick={() => report("comment", cm.id)} className="text-gray-300 font-semibold">신고</button>}
+                </div>
+              </div>
+              <p className="text-[14px] text-gray-800 mt-1.5 leading-relaxed whitespace-pre-wrap">{cm.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 댓글 입력 */}
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-gray-100 px-4 py-2.5 pb-[calc(10px+env(safe-area-inset-bottom))] z-30">
+        <div className="flex items-center gap-2">
+          <button onClick={() => setAnon(!anon)}
+            className={"shrink-0 px-2.5 py-2 rounded-lg text-[12px] font-bold press " + (anon ? "bg-brand text-white" : "bg-gray-100 text-gray-400")}>
+            🕶 익명
+          </button>
+          <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && comment()}
+            placeholder="댓글 달기…" maxLength={1000}
+            className="flex-1 min-w-0 px-3.5 py-2.5 text-[14px] bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-brand" />
+          <button disabled={busy || !text.trim()} onClick={comment}
+            className="shrink-0 px-4 py-2.5 bg-brand disabled:bg-gray-200 disabled:text-gray-400 text-white font-bold rounded-xl press text-[14px]">등록</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const HOME_NAV = { tab: "home", overlay: null, guide: null, detailFrom: "home", typesCat: "all" };
 
 function App() {
@@ -2985,6 +3316,9 @@ function App() {
   const [typesCat, setTypesCat] = useState("all");
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);  // /api/auth/me 확인 완료 여부
+  const [postId, setPostId] = useState(null);        // 커뮤니티: 열어본 글
+  const [editPost, setEditPost] = useState(null);    // 커뮤니티: 수정 중인 글
+  const [feedKey, setFeedKey] = useState(0);         // 목록 새로고침 트리거
 
   /* ---------- 뒤로가기(모바일 하드웨어 버튼 / 브라우저) ----------
      화면 전환마다 history 항목을 쌓고, popstate에서 그 화면 상태로 되돌린다.
@@ -3055,12 +3389,21 @@ function App() {
       {overlay === "quiz" && <Quiz onDone={done} onBack={back} />}
       {overlay === "result" && result &&
         <Result result={result} onRetry={() => go({ overlay: "quiz" })} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")} />}
+      {overlay === "post" && postId && <PostDetail id={postId} onBack={back}
+        onEdit={(p) => { setEditPost(p); go({ overlay: "write" }); }}
+        onDeleted={() => { setFeedKey((k) => k + 1); goTab("community"); }}
+        onChanged={() => setFeedKey((k) => k + 1)} />}
+      {overlay === "write" && <PostWrite initial={editPost} onBack={back}
+        onDone={(p) => { setEditPost(null); setPostId(p.id); setFeedKey((k) => k + 1); go({ overlay: "post" }); }} />}
       {overlay === "detail" && guide && <Guide target={guide} onBack={back} backLabel={detailFrom === "result" ? "‹ 결과로" : "‹ 목록으로"} />}
       {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={back} onAdmin={() => go({ overlay: "admin" })} onRetake={() => go({ overlay: "quiz" })} onViewResult={() => go({ overlay: "result" })} />}
       {overlay === "admin" && user.admin && <AdminScreen onBack={back} />}
 
       {/* 탭 콘텐츠 */}
       {!overlay && tab === "home" && <Home onGuide={(t) => openGuide(t, "home")} onMbti={() => goTab("mbti")} onNav={goTab} onCat={goCat} onCalc={() => goTab("calc")} onAccount={() => go({ overlay: "account" })} user={user} prev={result} />}
+      {!overlay && tab === "community" && <CommunityTab refreshKey={feedKey}
+        onOpen={(id) => { setPostId(id); go({ overlay: "post" }); }}
+        onWrite={() => { setEditPost(null); go({ overlay: "write" }); }} />}
       {!overlay && tab === "types" && <TypesTab onGuide={(t) => openGuide(t, "types")} initial={typesCat} />}
       {!overlay && tab === "guideList" && <GuideTab onGuide={(t) => openGuide(t, "guideList")} />}
       {!overlay && tab === "calc" && <Calc />}
