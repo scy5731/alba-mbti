@@ -888,9 +888,13 @@ app.post("/api/pay/return", express.urlencoded({ extended: false }), ah(async (r
   done({ pay: "ok" });
 }));
 
-/* 프리미엄 리포트 본문 — 8개 축 극성별 상세 해설.
-   이건 파는 물건이라 프론트 번들에 두면 안 된다(개발자도구로 그냥 읽힘).
-   구매자에게만 아래 /api/me/report 로 내려준다. */
+/* ============================ 프리미엄 리포트 ============================
+   파는 물건은 전부 여기 있다 — 축 상세 해설 · 근무 환경 태그 · 추천 TOP3(매칭 근거) ·
+   신중히 볼 알바. 프론트 번들에 두면 개발자도구로 그냥 읽혀서 페이월이 무의미해지므로,
+   내용도 계산도 서버에만 두고 구매자에게만 /api/me/report 로 내려준다.
+   프론트에는 유형의 설명(이름·이모지·한줄)만 남아 있고, 그건 유형 탭에서 원래 무료다. */
+
+// 8개 축 극성별 상세 해설.
 const PREMIUM_AXIS_DESC = {
   E: "손님·동료와 부딪히는 상황에서 오히려 에너지를 얻어요. 응대가 많은 자리일수록 지루하지 않고, 매장 분위기를 살리는 역할도 자연스럽게 해내요.",
   I: "북적임보다 혼자만의 리듬으로 일할 때 능률이 올라요. 과한 감정노동은 금세 지치니, 응대 강도가 낮고 조용한 자리가 편해요.",
@@ -902,12 +906,116 @@ const PREMIUM_AXIS_DESC = {
   G: "당장의 시급보다 뭘 배우고 남기는지를 더 봐요. 경험·커리어에 도움이 되는 일이면 조금 힘들어도 기꺼이 도전해요.",
 };
 
-// 프리미엄 리포트 본문. 산 사람만 받는다 — 페이월의 실제 경계선은 여기다.
+// 축 극성별 선호 근무 환경 태그.
+const ENV_TAG = {
+  E: "👥 손님·동료 응대가 있는 곳", I: "🎧 혼자 집중할 수 있는 곳",
+  D: "🏃 몸을 움직이는 활동적인 곳", C: "🪑 앉거나 한자리서 차분한 곳",
+  F: "📅 유연·단기 스케줄", S: "📌 고정·장기 스케줄",
+  P: "💰 시급·효율이 좋은 곳", G: "🌱 배울 게 있는 곳",
+};
+
+/* 유형별 매칭 점수표. 이 숫자들이 추천의 근거라 프론트에 두지 않는다.
+   프론트 TYPES 의 설명 필드와 id 로 짝지어진다 — 유형을 추가하면 양쪽 다 넣어야 한다. */
+const TYPE_SCORES = {
+  cafe: { pay:3, physical:2, social:4, learn:3, flex:false },
+  cvs: { pay:2, physical:2, social:2, learn:3, flex:false },
+  hall: { pay:3, physical:4, social:4, learn:3, flex:false },
+  kitchen: { pay:3, physical:4, social:1, learn:4, flex:false },
+  logi: { pay:5, physical:5, social:1, learn:2, flex:true },
+  delivery: { pay:4, physical:3, social:1, learn:2, flex:true },
+  study: { pay:2, physical:1, social:1, learn:1, flex:false },
+  event: { pay:4, physical:3, social:4, learn:2, flex:true },
+  bakery: { pay:2, physical:3, social:3, learn:3, flex:false },
+  mart: { pay:2, physical:3, social:3, learn:2, flex:false },
+  pcbang: { pay:2, physical:2, social:2, learn:1, flex:false },
+  tutor: { pay:4, physical:1, social:3, learn:4, flex:false },
+  cs: { pay:3, physical:1, social:3, learn:3, flex:false },
+  beauty: { pay:2, physical:2, social:4, learn:3, flex:false },
+  gym: { pay:2, physical:1, social:3, learn:2, flex:false },
+  fastfood: { pay:3, physical:3, social:4, learn:3, flex:false },
+  chicken: { pay:3, physical:3, social:2, learn:3, flex:false },
+  dessert: { pay:2, physical:2, social:4, learn:3, flex:false },
+  bar: { pay:4, physical:3, social:4, learn:3, flex:false },
+  bookstore: { pay:2, physical:2, social:2, learn:2, flex:false },
+  flower: { pay:2, physical:2, social:3, learn:3, flex:false },
+  kiosk: { pay:2, physical:2, social:1, learn:2, flex:false },
+  movie: { pay:3, physical:2, social:3, learn:2, flex:false },
+  karaoke: { pay:2, physical:2, social:2, learn:1, flex:false },
+  amusement: { pay:3, physical:3, social:4, learn:2, flex:false },
+  golf: { pay:5, physical:4, social:3, learn:4, flex:false },
+  lifeguard: { pay:4, physical:3, social:2, learn:3, flex:true },
+  gas: { pay:3, physical:2, social:3, learn:2, flex:false },
+  hotel: { pay:3, physical:2, social:4, learn:3, flex:false },
+  clean: { pay:2, physical:3, social:1, learn:1, flex:false },
+  petcafe: { pay:2, physical:2, social:3, learn:3, flex:false },
+  carwash: { pay:2, physical:4, social:1, learn:1, flex:false },
+  datawork: { pay:2, physical:1, social:1, learn:2, flex:true },
+  factory: { pay:3, physical:4, social:1, learn:2, flex:false },
+  sorting: { pay:3, physical:3, social:1, learn:1, flex:true },
+  moving: { pay:5, physical:5, social:1, learn:1, flex:true },
+  courier: { pay:4, physical:4, social:1, learn:1, flex:true },
+  valet: { pay:3, physical:2, social:3, learn:2, flex:false },
+  afterschool: { pay:4, physical:1, social:3, learn:4, flex:false },
+  flyer: { pay:2, physical:3, social:2, learn:1, flex:true },
+  promoter: { pay:3, physical:2, social:4, learn:2, flex:true },
+  wedding: { pay:3, physical:4, social:3, learn:2, flex:true },
+  babysit: { pay:4, physical:2, social:3, learn:3, flex:false },
+};
+
+function typeScore(code, t) {
+  let s = 0;
+  s += code[0] === "E" ? t.social : (6 - t.social);
+  s += code[1] === "D" ? t.physical : (6 - t.physical);
+  s += code[2] === "F" ? (t.flex ? 3 : 0) : (t.flex ? 0 : 2);
+  s += code[3] === "P" ? t.pay : t.learn;
+  return s;
+}
+
+// 43종 전체를 점수순으로. 앞에서 3개가 추천, 맨 뒤가 "신중히 볼 알바".
+function rankTypes(code) {
+  const ranked = Object.entries(TYPE_SCORES)
+    .map(([id, t]) => ({ id, t, s: typeScore(code, t) }))
+    .sort((a, b) => b.s - a.s);
+  const max = ranked[0].s || 1;
+  return ranked.map((r) => ({ ...r, pct: Math.min(98, 60 + Math.round((r.s / max) * 38)) }));
+}
+
+// 코드 vs 유형 — 축별로 잘 맞는 이유를 문장으로 생성(강한 것 순으로 최대 3개).
+function matchReasons(code, t) {
+  const r = [];
+  if (code[0] === "E" && t.social >= 4) r.push("손님·동료 응대가 많아 응대형인 당신에게 활력이 돼요");
+  if (code[0] === "I" && t.social <= 2) r.push("혼자 조용히 할 수 있어 독립형인 당신에게 편해요");
+  if (code[1] === "D" && t.physical >= 4) r.push("계속 몸을 움직여 활동형인 당신에게 시간이 잘 가요");
+  if (code[1] === "C" && t.physical <= 2) r.push("체력 부담이 적어 차분형인 당신에게 잘 맞아요");
+  if (code[2] === "F" && t.flex) r.push("단기·유연 근무라 유연형인 당신과 궁합이 좋아요");
+  if (code[2] === "S" && !t.flex) r.push("꾸준히 다니기 좋아 성실형인 당신에게 안정적이에요");
+  if (code[3] === "P" && t.pay >= 3) r.push("시급이 괜찮아 실속형인 당신에게 매력적이에요");
+  if (code[3] === "G" && t.learn >= 4) r.push("배울 게 많아 성장형인 당신에게 도움이 돼요");
+  return r.slice(0, 3);
+}
+
+const CODE_RE = /^[EI][DC][FS][PG]$/;
+
+/* 프리미엄 리포트 본문. 산 사람만 받는다 — 페이월의 실제 경계선은 여기다.
+   code 는 사용자 본인의 결과라 그대로 믿어도 되지만, 형식은 검사한다(없는 축 조회 방지). */
 app.get("/api/me/report", requireAuth, ah(async (req, res) => {
   if (PAY_ON && !(await store.hasPaid(req.user.id, "premium_report"))) {
     return res.status(402).json({ ok: false, error: "구매가 필요한 콘텐츠예요." });
   }
-  res.json({ ok: true, axis: PREMIUM_AXIS_DESC });
+  const code = String(req.query.code || "").toUpperCase();
+  if (!CODE_RE.test(code)) return res.status(400).json({ ok: false, error: "결과 코드가 올바르지 않아요." });
+  const ranked = rankTypes(code);
+  const worst = ranked[ranked.length - 1];
+  // 내 축 4개만 내려준다 — 안 산 극성까지 줄 이유가 없다.
+  const axis = {};
+  for (const ch of code) axis[ch] = PREMIUM_AXIS_DESC[ch];
+  res.json({
+    ok: true,
+    axis,
+    envTags: code.split("").map((ch) => ENV_TAG[ch]),
+    top: ranked.slice(0, 3).map((r) => ({ id: r.id, pct: r.pct, reasons: matchReasons(code, r.t) })),
+    worst: { id: worst.id, pct: worst.pct },
+  });
 }));
 
 // 내가 산 것 — 프론트의 페이월 판단 기준.

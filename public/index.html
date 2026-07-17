@@ -147,105 +147,105 @@ async function startPayment(product) {
    flex 단기/유연 여부
    ============================================================ */
 const TYPES = [
-  { id:"cafe", emoji:"☕", name:"카페 알바", tag:"실내 · 응대형", pay:3, physical:2, social:4, learn:3, flex:false,
+  { id:"cafe", emoji:"☕", name:"카페 알바", tag:"실내 · 응대형",
     oneLine:"음료 만들고 손님 응대하는 인기 No.1 입문 알바",
     about:"카페 알바는 음료 제조와 손님 응대가 반반씩 섞인 대표적인 입문 알바예요. 포스기 계산부터 에스프레소 머신·디저트 준비, 매장 청결 유지까지 손이 쉴 틈은 없지만 그만큼 다양한 일을 두루 배워요. 브랜드 카페는 매뉴얼이 잘 갖춰져 처음이라도 익히기 쉽고, 개인 카페는 자유도가 높은 대신 멀티태스킹이 많은 편이에요.",
     doing:["주문·계산(포스기)","음료·디저트 제조","매장 정리·마감 청소"],
     goodFor:"사람 응대가 어렵지 않고 손이 야무진 편이라면 잘 맞아요.",
     hard:["피크 타임엔 주문이 밀려 정신없이 바빠요.","서서 일하는 시간이 길어 다리가 붓기 쉬워요."],
     tips:["메뉴·사이즈 용어를 미리 외워가면 첫날이 편해요.","모르면 바로 질문 — 아는 척이 더 큰 실수를 불러요."] },
-  { id:"cvs", emoji:"🏪", name:"편의점 알바", tag:"실내 · 야간 가능 · 조용", pay:2, physical:2, social:2, learn:3, flex:false,
+  { id:"cvs", emoji:"🏪", name:"편의점 알바", tag:"실내 · 야간 가능 · 조용",
     oneLine:"혼자서도 할 수 있어 조용한 걸 좋아하는 사람에게 딱",
     about:"편의점은 대부분 혼자 매장을 보는 1인 근무라 내 페이스대로 조용히 일할 수 있어요. 계산과 진열이 기본이지만 택배·간편식 조리·공과금 수납까지 은근히 업무 종류가 많아 익숙해지는 데 며칠 걸려요. 야간은 시급이 더 높은 대신 손님이 적어 혼자 있는 시간이 길어요.",
     doing:["계산·성인 인증","진열·유통기한 체크","택배·간단 조리"],
     goodFor:"혼자 차분히 일하는 걸 좋아하고 야간도 괜찮다면 좋아요.",
     hard:["담배·주류 종류가 많아 처음엔 위치·번호 외우기가 벅차요.","야간엔 취객 응대나 안전 문제가 생길 수 있어요."],
     tips:["담배는 번호로 외우면 빨라요.","신분증 확인은 무조건(미확인 시 점주 과태료)."] },
-  { id:"hall", emoji:"🍽️", name:"홀서빙", tag:"실내 · 활동량 많음", pay:3, physical:4, social:4, learn:3, flex:false,
+  { id:"hall", emoji:"🍽️", name:"홀서빙", tag:"실내 · 활동량 많음",
     oneLine:"몸은 바쁘지만 시간은 빨리 가는 활동형 알바",
     about:"홀서빙은 주문을 받아 음식을 나르고 테이블을 정리하는, 몸을 계속 쓰는 활동형 알바예요. 앉아 있을 틈이 없어 시간은 빨리 가지만 그만큼 체력 소모가 커요. 손님과 짧게 자주 부딪히기 때문에 밝은 응대와 빠른 눈치가 중요하고, 동선이 익숙해지면 한결 수월해져요.",
     doing:["주문받고 음식 나르기","테이블 세팅·정리","손님 안내"],
     goodFor:"가만히 있는 것보다 몸을 움직이는 게 편한 사람에게 맞아요.",
     hard:["식사 피크 시간대엔 뛰어다닐 만큼 바빠요.","무거운 그릇·쟁반을 자주 들어 손목·다리에 무리가 가요."],
     tips:["동선을 외우면 훨씬 덜 힘들어요.","'네, 잠시만요!' 한마디가 컴플레인을 막아줘요."] },
-  { id:"kitchen", emoji:"🍳", name:"주방 보조", tag:"실내 · 응대 적음", pay:3, physical:4, social:1, learn:4, flex:false,
+  { id:"kitchen", emoji:"🍳", name:"주방 보조", tag:"실내 · 응대 적음",
     oneLine:"손님 응대는 적고, 손이 빨라지는 재미가 있는 알바",
     about:"주방 보조는 손님 응대가 거의 없이 재료 손질·조리 보조·설거지를 맡는, 손으로 하는 일 중심의 알바예요. 사람 상대가 부담스러운 사람에게 편하고, 하다 보면 칼질과 조리 순서가 몸에 붙어 속도가 빨라지는 재미가 있어요. 주방은 팀워크가 중요해 손발이 맞으면 훨씬 수월해져요.",
     doing:["재료 손질·세팅","조리 보조·플레이팅","설거지·정리"],
     goodFor:"응대는 부담스럽지만 손으로 하는 일이 좋다면 잘 맞아요.",
     hard:["칼·불·기름을 다뤄 베이거나 데일 위험이 있어요.","좁고 더운 주방에서 오래 서 있어야 해요."],
     tips:["칼·불·기름 화상 조심.","조리 순서를 몸에 익히면 속도가 확 빨라져요."] },
-  { id:"logi", emoji:"📦", name:"물류 상하차", tag:"고강도 · 단기 일당", pay:5, physical:5, social:1, learn:2, flex:true,
+  { id:"logi", emoji:"📦", name:"물류 상하차", tag:"고강도 · 단기 일당",
     oneLine:"하루 바짝 뛰고 목돈 버는 단기 고수익 알바",
     about:"물류 상하차는 하루 단위로 바짝 일하고 목돈을 버는 대표적인 고수익 단기 알바예요. 컨베이어에서 물품을 분류하거나 상자를 싣고 내리는 강도 높은 육체노동이라, 체력 소모가 큰 대신 시급·일당이 가장 높은 축에 속해요. 짧고 굵게 돈이 필요할 때 유용하지만 몸 관리가 관건이에요.",
     doing:["컨베이어 물품 분류","상자 상·하차","라벨 스캔·적재"],
     goodFor:"체력에 자신 있고 짧고 굵게 목돈이 필요할 때 좋아요.",
     hard:["체력 소모가 매우 커서 다음 날까지 근육통이 남기도 해요.","냉동·야간 라인 등 근무 환경이 힘든 곳도 있어요."],
     tips:["무조건 무릎으로 들기(허리 X).","초반 오버페이스 금지 — 페이스 조절이 핵심."] },
-  { id:"delivery", emoji:"🛵", name:"배달 라이더", tag:"실외 · 자유 근무", pay:4, physical:3, social:1, learn:2, flex:true,
+  { id:"delivery", emoji:"🛵", name:"배달 라이더", tag:"실외 · 자유 근무",
     oneLine:"원하는 시간에 앱 켜고 하는 가장 자유로운 알바",
     about:"배달 라이더는 앱을 켜고 원하는 시간에만 일하는, 가장 자유로운 형태의 알바예요. 정해진 출퇴근 없이 콜을 받아 픽업하고 배달하는 만큼 시간 활용이 자유롭고, 바쁜 시간대엔 건당 수입도 쏠쏠해요. 대신 안전이 수입보다 늘 우선이라는 점을 기억해야 해요.",
     doing:["배달 콜 수락","픽업·안전 운행·전달","앱 정산 확인"],
     goodFor:"정해진 스케줄이 싫고 내 시간에 벌고 싶은 사람에게 맞아요.",
     hard:["날씨·교통 사고 위험에 그대로 노출돼요.","오토바이·보험 등 초기 비용과 자기 관리가 필요해요."],
     tips:["무리한 콜 욕심이 사고를 부릅니다. 신호·헬멧 필수.","점심·저녁·우천 시간대가 건당 효율이 좋아요."] },
-  { id:"study", emoji:"📚", name:"스터디카페 관리", tag:"실내 · 저강도 · 조용", pay:2, physical:1, social:1, learn:1, flex:false,
+  { id:"study", emoji:"📚", name:"스터디카페 관리", tag:"실내 · 저강도 · 조용",
     oneLine:"가장 조용하고 몸이 편한, 공부하며 할 수 있는 알바",
     about:"스터디카페 관리는 알바 중 가장 몸이 편하고 조용한 축에 드는 일이에요. 좌석 안내와 간단한 청소·비품 보충이 주 업무라 손님과 부딪힐 일이 적고, 한가한 시간엔 내 공부나 독서를 병행하기도 좋아요. 시급은 높지 않지만 체력·감정 소모가 적은 게 큰 장점이에요.",
     doing:["좌석·이용 안내","간단 청소·비품 채우기","결제 응대(가끔)"],
     goodFor:"조용한 환경에서 여유 있게, 자기 시간도 챙기고 싶다면 최고.",
     hard:["할 일이 적어 오히려 지루하게 느껴질 수 있어요.","시급이 낮은 편이라 큰 벌이를 기대하긴 어려워요."],
     tips:["한가한 시간엔 공부·독서 병행 가능.","야간·주말 시간대가 자리 구하기 쉬워요."] },
-  { id:"event", emoji:"🎪", name:"행사 도우미", tag:"단기 · 응대형", pay:4, physical:3, social:4, learn:2, flex:true,
+  { id:"event", emoji:"🎪", name:"행사 도우미", tag:"단기 · 응대형",
     oneLine:"주말 하루 이틀, 짧게 하고 일당 챙기는 단기 알바",
     about:"행사 도우미는 주말이나 특정 기간에 짧게 일하고 일당을 받는 단기 응대형 알바예요. 행사장 안내·샘플 배부·부스 세팅 등이 주 업무라 밝은 표정과 친절함이 중요하고, 인상이 좋으면 다음 행사에 다시 불려가는 경우가 많아요. 유연하게 단기로 벌고 싶은 사람에게 잘 맞아요.",
     doing:["행사장 안내·응대","샘플·전단 배부","부스 세팅·정리"],
     goodFor:"밝게 응대할 수 있고 단기로 유연하게 벌고 싶다면 맞아요.",
     hard:["하루 종일 서 있거나 야외라 날씨 영향을 받아요.","일정이 불규칙해 꾸준한 수입으로 삼긴 어려워요."],
     tips:["복장·용모 규정을 미리 확인하세요.","친절한 인상이 곧 재고용으로 이어져요."] },
-  { id:"bakery", emoji:"🥐", name:"베이커리 판매", tag:"실내 · 새벽 오픈조", pay:2, physical:3, social:3, learn:3, flex:false,
+  { id:"bakery", emoji:"🥐", name:"베이커리 판매", tag:"실내 · 새벽 오픈조",
     oneLine:"빵 향 속에서 판매·포장하는 힐링형 알바",
     about:"베이커리 판매는 빵을 진열·포장·판매하는 깔끔한 실내 알바예요. 오픈조는 새벽에 시작하는 대신 오후 시간이 자유로워 하루를 길게 쓸 수 있고, 위생과 정리정돈을 중시하는 사람에게 잘 맞아요. 갓 구운 빵 냄새 속에서 일하는 힐링 요소도 있어요.",
     doing:["빵 진열·판매·포장","계산·간단 조리(샌드위치)","위생·유통기한 관리"],
     goodFor:"이른 출근이 괜찮고 깔끔하게 다루는 걸 좋아하면 잘 맞아요.",
     hard:["오픈조는 새벽 출근이라 아침잠이 많으면 힘들어요.","진열·재고 관리로 은근히 서서 움직일 일이 많아요."],
     tips:["오픈조는 새벽 시작이지만 오후가 자유로워요.","트레이·집게 위생을 신경 쓰세요."] },
-  { id:"mart", emoji:"🛒", name:"마트·매장 판매", tag:"실내 · 파트 다양", pay:2, physical:3, social:3, learn:2, flex:false,
+  { id:"mart", emoji:"🛒", name:"마트·매장 판매", tag:"실내 · 파트 다양",
     oneLine:"진열·계산·안내 등 파트가 다양한 대형 매장 알바",
     about:"마트·매장 판매는 진열·계산·고객 안내 등 파트가 세분화된 대형 매장 알바예요. 맡은 파트가 명확해 헤맬 일이 적고, 규모가 큰 만큼 함께 일하는 동료도 많아 팀으로 움직이는 걸 좋아하면 편해요. 시식·행사 보조 등 배치되는 파트에 따라 분위기가 꽤 달라요.",
     doing:["상품 진열·정리","계산·고객 안내","시식·행사 보조"],
     goodFor:"규모 있는 곳에서 파트 나눠 일하는 게 편하면 좋아요.",
     hard:["진열은 물량이 많아 무거운 상자를 옮길 일이 잦아요.","주말·세일 기간엔 손님이 몰려 매우 바빠요."],
     tips:["진열은 물량이 많아 체력이 필요해요.","파트별로 배치가 명확해 헤맬 일이 적어요."] },
-  { id:"pcbang", emoji:"🎮", name:"PC방 알바", tag:"실내 · 야간 가능", pay:2, physical:2, social:2, learn:1, flex:false,
+  { id:"pcbang", emoji:"🎮", name:"PC방 알바", tag:"실내 · 야간 가능",
     oneLine:"자리 안내·간단 조리·청소가 주인 마이페이스 알바",
     about:"PC방 알바는 자리 안내와 요금 관리, 간단한 조리·청소가 주 업무인 마이페이스형 알바예요. 손님 응대가 많지 않아 조용한 편이고 한가한 시간엔 여유가 있어요. 다만 은근히 라면·간식 주문이 있어 간단한 조리는 익혀둬야 하고, 마감 청소는 신경 쓸 일이 있어요.",
     doing:["자리 배정·요금 관리","라면 등 간단 조리","좌석 청소·정리"],
     goodFor:"북적임이 적은 조용한 환경을 좋아하면 잘 맞아요.",
     hard:["흡연·음식 냄새 등 매장 환경이 쾌적하지 않을 수 있어요.","야간엔 시급이 오르지만 청소·정리 강도가 커져요."],
     tips:["조리(라면·간식) 주문이 은근 있어요.","야간은 시급이 높지만 청소 강도가 올라가요."] },
-  { id:"tutor", emoji:"✏️", name:"과외·학원 보조", tag:"실내 · 지식 활용", pay:4, physical:1, social:3, learn:4, flex:false,
+  { id:"tutor", emoji:"✏️", name:"과외·학원 보조", tag:"실내 · 지식 활용",
     oneLine:"공부한 걸 살려 채점·질문 응대하는 고시급 알바",
     about:"과외·학원 보조는 자신이 공부한 지식을 살려 채점·질문 응대·수업 보조를 하는 고시급 알바예요. 앉아서 하는 일이라 체력 부담이 적고, 특정 과목에 강점이 있으면 시급이 높아 인기가 많아요. 아이·학부모를 대하는 태도가 재계약에 큰 영향을 줘요.",
     doing:["채점·오답 관리","질문 응대·수업 보조","교재·자료 정리"],
     goodFor:"특정 과목에 자신 있고 앉아서 하는 일이 편하면 좋아요.",
     hard:["시급이 높은 만큼 경쟁이 치열해 자리 구하기가 어려워요.","학생·학부모 응대에서 오는 심리적 부담이 있어요."],
     tips:["시급이 높은 편이라 인기가 많아요.","아이·학부모 응대 매너가 재계약을 좌우해요."] },
-  { id:"cs", emoji:"🎧", name:"콜센터·재택 CS", tag:"실내·재택 · 정적", pay:3, physical:1, social:3, learn:3, flex:false,
+  { id:"cs", emoji:"🎧", name:"콜센터·재택 CS", tag:"실내·재택 · 정적",
     oneLine:"앉아서 전화·채팅으로 응대하는 저체력 알바",
     about:"콜센터·재택 CS는 전화나 채팅으로 문의를 응대하는, 앉아서 하는 저체력 알바예요. 몸 쓰는 일이 싫은 사람에게 편하고 재택으로 가능한 경우도 있지만, 응대 자체가 곧 감정노동이라 멘탈 관리가 핵심이에요. 매뉴얼을 잘 익힐수록 응대가 훨씬 수월해져요.",
     doing:["전화·채팅 문의 응대","안내·접수 처리","응대 내역 기록"],
     goodFor:"몸 쓰는 건 싫지만 말·타이핑로 하는 응대는 괜찮다면 맞아요.",
     hard:["항의·불만 응대가 많아 감정 소모가 커요.","같은 자세로 오래 앉아 있어 어깨·목이 결려요."],
     tips:["감정노동이 있어 멘탈 관리가 중요해요.","매뉴얼을 숙지하면 응대가 훨씬 수월해요."] },
-  { id:"beauty", emoji:"💄", name:"뷰티·화장품 매장", tag:"실내 · 응대형", pay:2, physical:2, social:4, learn:3, flex:false,
+  { id:"beauty", emoji:"💄", name:"뷰티·화장품 매장", tag:"실내 · 응대형",
     oneLine:"화장품 추천·판매하며 뷰티 지식이 쌓이는 알바",
     about:"뷰티·화장품 매장은 제품을 추천·판매하며 자연스럽게 뷰티 지식이 쌓이는 응대형 알바예요. 화장품에 관심이 많고 사람과 대화하는 걸 즐기면 즐겁게 일할 수 있고, 일하는 동안 성분·브랜드 지식이 늘어 관심 분야라면 배움도 커요. 세일 시즌엔 분위기가 확 바빠져요.",
     doing:["판매·제품 추천·응대","계산·진열","재고·행사 관리"],
     goodFor:"뷰티에 관심 많고 사람 응대가 즐거우면 잘 맞아요.",
     hard:["판매 목표·실적 압박이 있는 곳도 있어요.","세일·행사 기간엔 정신없이 바쁘고 서 있는 시간이 길어요."],
     tips:["일하면서 성분·브랜드 지식이 자연히 쌓여요.","세일 시즌엔 정신없이 바빠요."] },
-  { id:"gym", emoji:"🏋️", name:"헬스장·수영장 데스크", tag:"실내 · 저강도 응대", pay:2, physical:1, social:3, learn:2, flex:false,
+  { id:"gym", emoji:"🏋️", name:"헬스장·수영장 데스크", tag:"실내 · 저강도 응대",
     oneLine:"회원 안내·정리 위주의 쾌적한 데스크 알바",
     about:"헬스장·수영장 데스크는 회원 안내와 비품 정리 위주의 쾌적한 응대 알바예요. 육체 강도가 낮고 운동 환경을 좋아하는 사람에게 잘 맞으며, 시설 이용 혜택을 주는 곳도 있어요. 응대는 가볍지만 회원 등록·관리 업무는 꼼꼼함이 필요해요.",
     doing:["회원 안내·등록 응대","수건·비품 정리","시설 간단 관리"],
@@ -254,28 +254,28 @@ const TYPES = [
     tips:["회원 운동시간(아침·저녁)에 붐벼요.","시설 이용 혜택을 주는 곳도 있어요."] },
 
   /* ── 외식·음료 추가 ── */
-  { id:"fastfood", emoji:"🍔", name:"패스트푸드", tag:"실내 · 카운터+주방", pay:3, physical:3, social:4, learn:3, flex:false,
+  { id:"fastfood", emoji:"🍔", name:"패스트푸드", tag:"실내 · 카운터+주방",
     oneLine:"카운터와 주방을 오가며 빠르게 배우는 대표 입문 알바",
     about:"패스트푸드는 주문·계산과 조리를 함께 맡는 경우가 많아, 응대와 손 쓰는 일을 두루 경험하는 대표 입문 알바예요. 매뉴얼이 잘 갖춰져 처음이라도 순서대로 익히기 쉽고, 피크 타임엔 속도가 관건이라 손이 빨라지는 재미가 있어요. 프랜차이즈라 어느 지점이든 업무가 비슷해 경력을 쌓기 좋아요.",
     doing:["주문·계산(키오스크·카운터)","버거·감자 등 조리 보조","포장·매장 청소"],
     goodFor:"정해진 매뉴얼대로 빠르게 움직이는 게 잘 맞는 사람에게 좋아요.",
     hard:["점심·저녁 피크엔 주문이 폭주해 정신없이 바빠요.","기름·그릴을 다뤄 덥고 화상 위험이 있어요."],
     tips:["메뉴 번호·세트 구성을 외우면 훨씬 빨라져요.","포지션(카운터·주방)마다 요령이 달라요."] },
-  { id:"chicken", emoji:"🍗", name:"치킨·분식집", tag:"실내 · 조리 보조", pay:3, physical:3, social:2, learn:3, flex:false,
+  { id:"chicken", emoji:"🍗", name:"치킨·분식집", tag:"실내 · 조리 보조",
     oneLine:"튀김·조리 보조와 포장 위주의 동네 먹거리 알바",
     about:"치킨집·분식집은 조리 보조와 포장이 중심이라 손님을 길게 응대할 일은 적은 편이에요. 반죽·튀김·양념 버무리기나 떡볶이·김밥 준비 등 손이 빠르게 느는 일이 많고, 배달앱 주문 포장까지 맡는 경우가 흔해요. 규모가 작아 사장님과 가깝게 일하는 분위기예요.",
     doing:["튀김·조리 보조","배달·포장 준비","매장·기구 청소"],
     goodFor:"응대보다 손으로 만드는 일이 편한 사람에게 잘 맞아요.",
     hard:["뜨거운 기름을 다뤄 화상에 특히 조심해야 해요.","주말·저녁엔 주문이 몰려 손이 매우 바빠요."],
     tips:["기름 온도·튀김 시간을 몸에 익히면 편해요.","포장 실수(누락)가 클레임 1순위예요."] },
-  { id:"dessert", emoji:"🍨", name:"디저트·아이스크림", tag:"실내 · 제조+응대", pay:2, physical:2, social:4, learn:3, flex:false,
+  { id:"dessert", emoji:"🍨", name:"디저트·아이스크림", tag:"실내 · 제조+응대",
     oneLine:"아이스크림·빙수를 만들고 응대하는 달콤한 실내 알바",
     about:"아이스크림·빙수 등 디저트 전문점은 제조와 응대가 반반 섞인 깔끔한 실내 알바예요. 메뉴가 예쁘고 손이 가는 작업이 많아 꼼꼼함이 강점이 되고, 여름 성수기엔 손님이 크게 몰려요. 브랜드마다 레시피 매뉴얼이 있어 익히기 어렵지 않아요.",
     doing:["아이스크림·빙수 등 제조","주문·계산·응대","진열·위생 관리"],
     goodFor:"예쁘게 만드는 손작업과 응대를 함께 즐기는 사람에게 맞아요.",
     hard:["여름 성수기엔 대기 줄이 길 만큼 바빠요.","냉동고를 자주 여닫아 손이 시릴 수 있어요."],
     tips:["인기 메뉴 레시피부터 손에 익히세요.","진열·컵 위생이 첫인상을 좌우해요."] },
-  { id:"bar", emoji:"🍶", name:"이자카야·펍", tag:"야간 · 시급 높음", pay:4, physical:3, social:4, learn:3, flex:false,
+  { id:"bar", emoji:"🍶", name:"이자카야·펍", tag:"야간 · 시급 높음",
     oneLine:"저녁부터 시작해 시급이 높은 야간 홀 알바",
     about:"이자카야·펍은 저녁~심야에 운영해 야간 가산으로 시급이 높은 편인 홀 알바예요. 주문받고 안주·주류를 나르는 활동형 업무에 술손님 응대가 더해져, 밝고 센스 있는 응대가 중요해요. 마감이 늦은 대신 낮 시간을 자유롭게 쓸 수 있어요.",
     doing:["주문·주류/안주 서빙","테이블 세팅·정리","마감 청소"],
@@ -284,21 +284,21 @@ const TYPES = [
     tips:["기본 주류·안주 메뉴를 미리 익혀두세요.","취객 대응은 혼자 감당 말고 매니저와 함께."] },
 
   /* ── 매장·판매 추가 ── */
-  { id:"bookstore", emoji:"📗", name:"서점", tag:"실내 · 조용 · 진열", pay:2, physical:2, social:2, learn:2, flex:false,
+  { id:"bookstore", emoji:"📗", name:"서점", tag:"실내 · 조용 · 진열",
     oneLine:"진열·안내 위주로 조용하게 일하는 차분한 알바",
     about:"서점은 책 진열과 재고 정리, 계산·위치 안내가 주 업무인 조용한 실내 알바예요. 소란이 적어 차분한 환경을 좋아하는 사람에게 편하고, 신간·분야 위치를 익히면 응대가 수월해져요. 무거운 책 박스를 옮기는 진열 작업은 은근히 체력이 필요해요.",
     doing:["책 진열·재고 정리","계산·위치 안내","반품·정리 작업"],
     goodFor:"조용한 환경에서 정리·안내하는 일을 좋아하는 사람에게 좋아요.",
     hard:["책 박스가 무거워 진열이 은근히 힘들어요.","분야·위치를 외우기 전엔 안내가 헷갈려요."],
     tips:["매장 분야 배치도를 먼저 익히세요.","무거운 박스는 무릎으로 들어 허리를 지키세요."] },
-  { id:"flower", emoji:"💐", name:"꽃집", tag:"실내 · 손작업", pay:2, physical:2, social:3, learn:3, flex:false,
+  { id:"flower", emoji:"💐", name:"꽃집", tag:"실내 · 손작업",
     oneLine:"꽃 손질·포장하며 감각이 느는 아기자기한 알바",
     about:"꽃집은 꽃을 손질하고 다듬어 포장·판매하는 감각적인 알바예요. 물올림·가시 제거 같은 기초 작업부터 간단한 꽃다발 포장까지 배우며 손끝 감각이 늘어요. 기념일·시즌엔 주문이 몰려 바빠지지만, 예쁜 걸 만드는 만족감이 큰 일이에요.",
     doing:["꽃 손질·물올림","포장·간단 꽃다발","진열·주문 응대"],
     goodFor:"손으로 예쁘게 만드는 작업과 차분한 응대를 좋아하면 잘 맞아요.",
     hard:["새벽 시장·입고 시간이 이른 곳도 있어요.","기념일·시즌엔 주문이 폭주해 바빠요."],
     tips:["꽃 이름·관리법을 익히면 응대가 쉬워져요.","가시·꽃물에 손 보호장갑을 쓰세요."] },
-  { id:"kiosk", emoji:"🏬", name:"무인매장 관리", tag:"순회 · 조용 · 저응대", pay:2, physical:2, social:1, learn:2, flex:false,
+  { id:"kiosk", emoji:"🏬", name:"무인매장 관리", tag:"순회 · 조용 · 저응대",
     oneLine:"무인점포를 순회하며 채우고 정리하는 조용한 알바",
     about:"무인매장 관리는 무인 아이스크림·편의점·스터디룸 등을 돌며 재고를 채우고 청소·정리하는 조용한 알바예요. 상주 응대가 없어 대인 부담이 적고 내 페이스로 움직일 수 있지만, 여러 점포를 순회하거나 키오스크·CCTV 관리를 익혀야 할 수 있어요. 손이 많이 가진 않아도 꼼꼼함이 필요해요.",
     doing:["재고 보충·진열","청소·정리","키오스크·시설 점검"],
@@ -307,35 +307,35 @@ const TYPES = [
     tips:["재고·유통기한 체크를 습관화하세요.","기기 오류 시 연락·대응 절차를 익혀두세요."] },
 
   /* ── 문화·여가·생활 추가 ── */
-  { id:"movie", emoji:"🎬", name:"영화관 스태프", tag:"실내 · 포지션 순환", pay:3, physical:2, social:3, learn:2, flex:false,
+  { id:"movie", emoji:"🎬", name:"영화관 스태프", tag:"실내 · 포지션 순환",
     oneLine:"매표·매점·상영관 정리를 순환하는 실내 응대 알바",
     about:"영화관 스태프는 매표, 매점(팝콘·음료), 상영관 정리를 돌아가며 맡는 실내 알바예요. 포지션이 나뉘어 있어 그날 배치에 따라 일이 달라지고, 심야 상영이 있어 야간 시프트가 생기기도 해요. 큰 상영관은 함께 일하는 스태프가 많아 팀 분위기로 움직여요.",
     doing:["매표·발권 안내","팝콘·음료 판매","상영관 청소·정리"],
     goodFor:"다양한 포지션을 번갈아 하는 걸 지루하지 않아 하는 사람에게 좋아요.",
     hard:["상영 종료 직후 짧은 시간에 청소를 몰아쳐야 해요.","주말·개봉일엔 관객이 몰려 매우 붐벼요."],
     tips:["상영 시간표를 파악하면 동선이 편해져요.","팝콘·음료 제조는 생각보다 손이 빨라야 해요."] },
-  { id:"karaoke", emoji:"🎤", name:"노래방 관리", tag:"실내 · 야간 가능", pay:2, physical:2, social:2, learn:1, flex:false,
+  { id:"karaoke", emoji:"🎤", name:"노래방 관리", tag:"실내 · 야간 가능",
     oneLine:"방 안내·정리와 간단 조리 위주의 마이페이스 알바",
     about:"노래방 관리는 방 배정과 요금 계산, 청소·정리, 간단한 음료·간식 준비가 주 업무인 마이페이스형 알바예요. 손님 응대가 많지 않고 한가한 시간엔 여유가 있어, 조용히 내 페이스로 일하고 싶은 사람에게 편해요. 야간엔 시급이 오르지만 취객 응대나 마감 청소가 늘어요.",
     doing:["방 배정·요금 관리","방 청소·기기 정리","간단 음료·간식 준비"],
     goodFor:"북적임이 적은 환경에서 마이페이스로 일하고 싶은 사람에게 맞아요.",
     hard:["마감 청소·소독 등 잔손 가는 일이 많아요.","야간엔 취객 응대가 생길 수 있어요."],
     tips:["기기·리모컨 사용법을 익혀두면 편해요.","야간은 시급이 높지만 청소 강도가 올라가요."] },
-  { id:"amusement", emoji:"🎢", name:"놀이공원 스태프", tag:"실외 · 활기 · 응대", pay:3, physical:3, social:4, learn:2, flex:false,
+  { id:"amusement", emoji:"🎢", name:"놀이공원 스태프", tag:"실외 · 활기 · 응대",
     oneLine:"어트랙션·매표를 맡는 활기찬 응대형 알바",
     about:"놀이공원 스태프는 어트랙션 운영, 매표, 안내 등을 맡는 활기찬 응대형 알바예요. 방문객을 밝게 응대하고 안전 수칙을 지키는 게 중요하며, 실외 근무와 서서 하는 일이 많아 활동적이에요. 시즌·주말엔 인파가 몰려 정신없이 바빠지지만 분위기가 활기차요.",
     doing:["어트랙션 운영·안전 안내","매표·입장 응대","질서·동선 관리"],
     goodFor:"밝은 응대와 활동적인 실외 근무를 즐기는 사람에게 맞아요.",
     hard:["성수기·주말엔 인파로 매우 붐벼요.","실외라 더위·추위 등 날씨 영향을 받아요."],
     tips:["안전 수칙 숙지가 무엇보다 중요해요.","밝은 표정·목소리가 곧 서비스 품질이에요."] },
-  { id:"golf", emoji:"⛳", name:"골프장 경기보조", tag:"실외 · 고수익 · 전문", pay:5, physical:4, social:3, learn:4, flex:false,
+  { id:"golf", emoji:"⛳", name:"골프장 경기보조", tag:"실외 · 고수익 · 전문",
     oneLine:"실외에서 라운드를 돕는 고수익·고체력 전문 알바",
     about:"골프장 경기보조(캐디)는 라운드 동안 골프백·코스 관리와 진행을 돕는, 시급·수입이 높은 편인 전문 알바예요. 교육을 이수해야 시작할 수 있고 코스·규칙·매너 지식이 필요해 배움 폭이 크지만, 그만큼 벌이가 좋아요. 하루 종일 실외에서 걷고 무게를 다뤄 체력이 관건이에요.",
     doing:["코스 안내·진행 보조","골프백·용품 관리","그린·거리 정보 제공"],
     goodFor:"실외 활동이 괜찮고 전문성으로 높은 수입을 원하면 좋아요.",
     hard:["장시간 실외 근무로 체력·날씨 부담이 커요.","코스·규칙·매너 등 익힐 게 많아요."],
     tips:["초반엔 교육·경험을 쌓는 기간이 필요해요.","고객 매너 응대가 재고용·수입을 좌우해요."] },
-  { id:"lifeguard", emoji:"🏊", name:"수영장·워터파크 안전요원", tag:"여름 · 자격 필요", pay:4, physical:3, social:2, learn:3, flex:true,
+  { id:"lifeguard", emoji:"🏊", name:"수영장·워터파크 안전요원", tag:"여름 · 자격 필요",
     oneLine:"자격을 살려 여름에 바짝 버는 안전관리 알바",
     about:"수영장·워터파크 안전요원은 이용객의 안전을 지키는, 자격(인명구조 등)이 필요한 알바예요. 자격을 갖추면 시급이 높고 여름 성수기에 집중적으로 일할 수 있어요. 물가에서 집중해 감시하는 일이라 순간 대응력과 책임감이 크게 요구돼요.",
     doing:["이용객 안전 감시","안전 수칙 안내","응급 상황 대응"],
@@ -344,35 +344,35 @@ const TYPES = [
     tips:["인명구조 등 자격을 미리 갖춰야 해요.","자외선·탈수 대비를 철저히 하세요."] },
 
   /* ── 서비스 추가 ── */
-  { id:"gas", emoji:"⛽", name:"주유소", tag:"실외 · 야간 시급↑", pay:3, physical:2, social:3, learn:2, flex:false,
+  { id:"gas", emoji:"⛽", name:"주유소", tag:"실외 · 야간 시급↑",
     oneLine:"주유·간단 세차 위주의 실외 알바, 야간은 시급↑",
     about:"주유소는 주유와 간단한 세차·안내가 주 업무인 실외 알바예요. 서서 움직이지만 강도는 중간 정도이고, 야간조는 시급이 오르는 대신 혼자 근무하는 시간이 길어요. 카드 결제·포인트 안내 등 정해진 절차를 익히면 금방 손에 붙어요.",
     doing:["주유·결제 안내","간단 세차·정리","재고·시설 점검"],
     goodFor:"실외 근무가 답답하지 않고 절차대로 일하는 게 편한 사람에게 좋아요.",
     hard:["더위·추위 등 날씨에 그대로 노출돼요.","유증기·안전 수칙에 늘 주의해야 해요."],
     tips:["주유 중 금연·정전기 등 안전수칙이 최우선.","야간은 시급이 높지만 혼자 근무가 많아요."] },
-  { id:"hotel", emoji:"🏨", name:"호텔·게스트하우스 프론트", tag:"실내 · 응대 · 야간", pay:3, physical:2, social:4, learn:3, flex:false,
+  { id:"hotel", emoji:"🏨", name:"호텔·게스트하우스 프론트", tag:"실내 · 응대 · 야간",
     oneLine:"체크인·안내를 맡는 정적인 응대형 프론트 알바",
     about:"호텔·게스트하우스 프론트는 체크인·체크아웃과 투숙객 안내가 중심인 응대형 알바예요. 데스크에 서서 하는 일이라 체력 강도는 낮지만, 예약·결제 시스템과 외국인 응대까지 익혀야 해서 배움 폭이 있어요. 야간(나이트) 시프트는 시급이 높고 조용한 편이에요.",
     doing:["체크인·체크아웃 처리","객실·시설 안내","예약·전화 응대"],
     goodFor:"차분한 응대와 시스템 다루는 일이 잘 맞는 사람에게 좋아요.",
     hard:["야간 근무 시 혼자 상황을 처리해야 할 때가 있어요.","컴플레인·특이 요청 응대가 까다로울 수 있어요."],
     tips:["예약·결제 시스템부터 확실히 익히세요.","기본 영어 응대를 익혀두면 크게 유리해요."] },
-  { id:"clean", emoji:"🧹", name:"청소·미화", tag:"오전 · 혼자 · 저응대", pay:2, physical:3, social:1, learn:1, flex:false,
+  { id:"clean", emoji:"🧹", name:"청소·미화", tag:"오전 · 혼자 · 저응대",
     oneLine:"이른 시간 혼자 조용히 하는 저응대 청소 알바",
     about:"건물·매장 미화는 이른 아침이나 오전에 혼자 조용히 하는 청소 위주의 알바예요. 사람 응대가 거의 없어 대인 부담이 적고, 정해진 구역을 내 페이스로 정리하면 되는 게 장점이에요. 몸을 쓰지만 강도는 조절 가능하고, 오후 시간이 자유로운 오전 근무가 많아요.",
     doing:["구역별 청소·정리","쓰레기·분리수거","비품 보충"],
     goodFor:"응대 없이 혼자 묵묵히 하는 일이 편한 사람에게 잘 맞아요.",
     hard:["허리·무릎을 쓰는 반복 동작이 많아요.","세제·먼지 등 위생 환경에 주의가 필요해요."],
     tips:["동선을 정해 두면 훨씬 덜 힘들어요.","보호장갑·마스크로 손·호흡기를 보호하세요."] },
-  { id:"petcafe", emoji:"🐾", name:"애견카페·펫샵", tag:"실내 · 동물 돌봄", pay:2, physical:2, social:3, learn:3, flex:false,
+  { id:"petcafe", emoji:"🐾", name:"애견카페·펫샵", tag:"실내 · 동물 돌봄",
     oneLine:"동물을 돌보며 응대하는, 동물 좋아하면 천직 알바",
     about:"애견카페·펫샵은 동물을 돌보고 손님을 응대하는, 동물을 좋아하는 사람에게 즐거운 알바예요. 사료·물 관리, 배변 정리, 미용·용품 안내 등 은근히 챙길 게 많고, 위생 관리가 중요해요. 동물과 교감하는 보람이 큰 대신 예상 못한 상황(짖음·배변)에 유연해야 해요.",
     doing:["동물 돌봄·위생 관리","손님·분양 상담 응대","매장·용품 정리"],
     goodFor:"동물을 좋아하고 세심하게 돌보는 걸 즐기는 사람에게 딱이에요.",
     hard:["털·냄새·배변 등 위생 작업이 계속돼요.","동물이 갑자기 흥분·다툴 때 대처가 필요해요."],
     tips:["동물 다루는 기본 수칙부터 배우세요.","위생·소독 관리가 매장 신뢰를 좌우해요."] },
-  { id:"carwash", emoji:"🧼", name:"세차장", tag:"실외 · 체력 · 저응대", pay:2, physical:4, social:1, learn:1, flex:false,
+  { id:"carwash", emoji:"🧼", name:"세차장", tag:"실외 · 체력 · 저응대",
     oneLine:"물과 몸을 쓰는 응대 적은 실외 체력 알바",
     about:"세차장은 차량을 세척·건조·정리하는, 몸을 많이 쓰는 실외 알바예요. 손님 응대는 적고 정해진 세차 순서를 반복해 익히기 쉬운 대신, 물·세제를 다루며 계속 움직여 체력 소모가 커요. 여름·겨울엔 물일 특성상 근무 환경이 힘들어질 수 있어요.",
     doing:["세차·건조·광택","실내 청소·매트 정리","장비·용품 관리"],
@@ -381,7 +381,7 @@ const TYPES = [
     tips:["방수 장갑·앞치마로 몸을 보호하세요.","세차 순서를 정형화하면 속도가 붙어요."] },
 
   /* ── 사무·상담 추가 ── */
-  { id:"datawork", emoji:"💻", name:"재택 데이터 입력·라벨링", tag:"재택 · 정적 · 유연", pay:2, physical:1, social:1, learn:2, flex:true,
+  { id:"datawork", emoji:"💻", name:"재택 데이터 입력·라벨링", tag:"재택 · 정적 · 유연",
     oneLine:"집에서 조용히 하는 정적·저응대 재택 알바",
     about:"재택 데이터 입력·라벨링은 집에서 컴퓨터로 자료를 입력하거나 이미지·텍스트에 태그를 다는 정적인 알바예요. 이동·응대가 없어 몸이 편하고 시간을 유연하게 쓸 수 있지만, 단순 반복이 많고 건당 단가가 낮은 편이라 큰 벌이는 어려워요. 꼼꼼함과 집중력이 성과를 좌우해요.",
     doing:["데이터 입력·정리","이미지·텍스트 라벨링","검수·오류 수정"],
@@ -390,21 +390,21 @@ const TYPES = [
     tips:["작업 가이드를 정확히 지켜야 반려가 없어요.","오래 앉는 만큼 자세·눈 휴식을 챙기세요."] },
 
   /* ── 생산·물류·노무 추가 ── */
-  { id:"factory", emoji:"🏭", name:"제조·생산라인", tag:"반복 작업 · 저응대", pay:3, physical:4, social:1, learn:2, flex:false,
+  { id:"factory", emoji:"🏭", name:"제조·생산라인", tag:"반복 작업 · 저응대",
     oneLine:"라인에서 반복 작업하는 응대 없는 생산직 알바",
     about:"공장·생산라인은 컨베이어나 작업대에서 조립·검수·포장 같은 정해진 작업을 반복하는 알바예요. 손님 응대가 없고 맡은 공정이 명확해 헤맬 일이 적은 대신, 같은 동작을 오래 반복하는 집중력과 체력이 필요해요. 교대 근무나 주야 시프트가 있는 곳도 있어요.",
     doing:["라인 조립·가공","검수·불량 선별","포장·적재"],
     goodFor:"응대 없이 정해진 작업을 꾸준히 반복하는 게 편한 사람에게 맞아요.",
     hard:["같은 동작 반복으로 손목·어깨가 결릴 수 있어요.","오래 서서 집중해야 해 지루할 수 있어요."],
     tips:["안전 수칙·보호구 착용이 최우선이에요.","작업 리듬을 만들면 피로가 덜해요."] },
-  { id:"sorting", emoji:"📮", name:"택배 분류·소분", tag:"단기 · 물류 · 저응대", pay:3, physical:3, social:1, learn:1, flex:true,
+  { id:"sorting", emoji:"📮", name:"택배 분류·소분", tag:"단기 · 물류 · 저응대",
     oneLine:"물류센터에서 택배를 분류·소분하는 단기 알바",
     about:"택배 분류·소분은 물류센터에서 지역·크기별로 물품을 나누고 정리하는 단기 알바예요. 상하차만큼 극단적이진 않아 강도는 중간 정도이고, 하루·단기로 지원할 수 있어 유연하게 일하기 좋아요. 단순 반복 작업이라 배우는 건 금방이지만 속도가 관건이에요.",
     doing:["택배 지역·크기별 분류","라벨 스캔·정리","소분·적재"],
     goodFor:"단기로 부담 없이, 응대 없는 몸 쓰는 일을 원하면 좋아요.",
     hard:["서서 반복 이동이 많아 다리가 피로해요.","물량이 몰리는 시즌엔 강도가 확 올라가요."],
     tips:["편한 신발·복장이 피로를 크게 줄여줘요.","초반 오버페이스보다 꾸준한 속도가 나아요."] },
-  { id:"moving", emoji:"🚚", name:"이삿짐·용달 보조", tag:"고강도 · 단기 일당", pay:5, physical:5, social:1, learn:1, flex:true,
+  { id:"moving", emoji:"🚚", name:"이삿짐·용달 보조", tag:"고강도 · 단기 일당",
     oneLine:"하루 바짝 뛰고 목돈 버는 고강도 단기 일당",
     about:"이삿짐·용달 보조는 짐을 나르고 싣고 내리는, 물류 상하차만큼 강도 높은 단기 고수익 알바예요. 하루 단위 일당이 세고 응대가 거의 없지만, 무거운 짐과 계단 작업으로 체력 소모가 매우 커요. 짧고 굵게 돈이 필요할 때 유용하지만 안전한 자세가 필수예요.",
     doing:["짐 포장·운반","상·하차 적재","가구 이동·정리"],
@@ -413,14 +413,14 @@ const TYPES = [
     tips:["무조건 무릎으로 들어 허리를 보호하세요.","장갑·복대 등 보호구를 챙기세요."] },
 
   /* ── 배달·운전 추가 ── */
-  { id:"courier", emoji:"🛻", name:"택배·배송 보조", tag:"실외 · 유연 · 활동", pay:4, physical:4, social:1, learn:1, flex:true,
+  { id:"courier", emoji:"🛻", name:"택배·배송 보조", tag:"실외 · 유연 · 활동",
     oneLine:"지역을 돌며 택배를 배송하는 활동적 단기 알바",
     about:"택배·배송 보조(쿠팡플렉스 등)는 지정 구역을 돌며 물건을 배송하는 활동적인 알바예요. 본인 차량이나 지급 차량으로 다니며 건수·시간 단위로 일해 유연하고, 바쁜 시즌엔 수입이 쏠쏠해요. 응대는 거의 없지만 운전·상하차·계단 이동이 많아 체력과 안전이 중요해요.",
     doing:["물품 픽업·분류","구역 배송·전달","배송 완료 처리"],
     goodFor:"혼자 활동적으로 다니며 유연하게 벌고 싶은 사람에게 맞아요.",
     hard:["짐 싣고 계단 오르내리기로 체력 소모가 커요.","운전·교통 안전에 늘 주의해야 해요."],
     tips:["동선을 미리 짜면 훨씬 효율적이에요.","무거운 짐은 무릎으로, 안전운전 필수."] },
-  { id:"valet", emoji:"🚗", name:"발렛·주차 관리", tag:"실외 · 면허 필요", pay:3, physical:2, social:3, learn:2, flex:false,
+  { id:"valet", emoji:"🚗", name:"발렛·주차 관리", tag:"실외 · 면허 필요",
     oneLine:"차량을 대신 주차·관리하는 실외 응대 알바",
     about:"발렛·주차 관리는 손님 차량을 대신 주차하거나 주차장을 안내·관리하는 실외 알바예요. 발렛은 운전면허와 운전 실력이 필요하고, 고급 매장·호텔은 응대 매너도 중요해요. 서서 이동이 많고 날씨 영향을 받지만, 차를 좋아하면 흥미로운 일이에요.",
     doing:["차량 주차·출차","주차장 안내·정리","차량·키 관리"],
@@ -429,7 +429,7 @@ const TYPES = [
     tips:["면허·운전 능력은 기본, 차량 손상에 각별히 주의.","키·차량 위치 기록을 꼼꼼히 남기세요."] },
 
   /* ── 교육·강사 추가 ── */
-  { id:"afterschool", emoji:"🎒", name:"방과후·보조교사", tag:"실내 · 지식 활용", pay:4, physical:1, social:3, learn:4, flex:false,
+  { id:"afterschool", emoji:"🎒", name:"방과후·보조교사", tag:"실내 · 지식 활용",
     oneLine:"아이들 학습·활동을 돕는 지식 활용형 교육 알바",
     about:"방과후·보조교사는 학교·센터에서 아이들의 학습이나 활동 프로그램을 돕는 교육형 알바예요. 앉아서 혹은 교실에서 아이들을 지도·관리하는 일이라 체력 부담은 적지만, 아이들을 이끄는 인내심과 책임감이 필요해요. 교육 경험을 쌓기 좋아 관련 진로에 관심 있으면 특히 의미 있어요.",
     doing:["학습·활동 지도 보조","교재·준비물 정리","아이 관리·안전 확인"],
@@ -438,28 +438,28 @@ const TYPES = [
     tips:["아이 눈높이에 맞춘 말투가 큰 도움이 돼요.","관련 진로(교육) 경험으로 잘 이어져요."] },
 
   /* ── 이벤트·단기 추가 ── */
-  { id:"flyer", emoji:"📢", name:"전단지·홍보 배포", tag:"실외 · 단기 · 단순", pay:2, physical:3, social:2, learn:1, flex:true,
+  { id:"flyer", emoji:"📢", name:"전단지·홍보 배포", tag:"실외 · 단기 · 단순",
     oneLine:"길거리에서 전단·샘플을 나눠주는 단순 단기 알바",
     about:"전단지·홍보물 배포는 길거리나 매장 앞에서 전단·샘플을 나눠주는 단순한 단기 알바예요. 특별한 기술 없이 바로 시작할 수 있고 시간 단위로 일하기 좋지만, 계속 서서 걷고 날씨의 영향을 받아요. 밝게 건네는 태도가 배포 효율을 좌우해요.",
     doing:["전단·샘플 배포","지정 구역 홍보","수량·현황 정리"],
     goodFor:"부담 없는 단순 업무를 짧게 하고 싶은 사람에게 맞아요.",
     hard:["계속 서서 걸어 다리가 피로해요.","날씨(더위·추위·비)에 그대로 노출돼요."],
     tips:["밝은 인사와 눈맞춤이 배포 효율을 높여요.","지정 구역·시간을 꼭 지켜야 해요."] },
-  { id:"promoter", emoji:"🛍️", name:"판촉·시식 도우미", tag:"단기 · 응대 · 주말", pay:3, physical:2, social:4, learn:2, flex:true,
+  { id:"promoter", emoji:"🛍️", name:"판촉·시식 도우미", tag:"단기 · 응대 · 주말",
     oneLine:"마트에서 시식·제품을 권하는 단기 응대 알바",
     about:"판촉·시식 도우미는 마트·매장에서 제품을 소개하고 시식을 권하며 구매를 유도하는 단기 응대 알바예요. 밝고 적극적인 응대가 핵심이라 사람 상대가 즐거운 사람에게 잘 맞고, 주말·행사 위주로 유연하게 일할 수 있어요. 서서 계속 말을 거는 만큼 목·다리가 피로할 수 있어요.",
     doing:["제품 소개·시식 권유","간단 조리·세팅","판매·재고 정리"],
     goodFor:"적극적으로 말 걸며 응대하는 걸 즐기는 사람에게 좋아요.",
     hard:["하루 종일 서서 말을 걸어 목·다리가 지쳐요.","판매 실적 압박이 있는 곳도 있어요."],
     tips:["제품 특징 2~3가지를 또렷하게 준비하세요.","친절한 인상이 재고용으로 이어져요."] },
-  { id:"wedding", emoji:"💒", name:"웨딩·뷔페 서빙", tag:"주말 단기 · 활동", pay:3, physical:4, social:3, learn:2, flex:true,
+  { id:"wedding", emoji:"💒", name:"웨딩·뷔페 서빙", tag:"주말 단기 · 활동",
     oneLine:"주말에 몰아서 하는 활동량 많은 단기 서빙",
     about:"웨딩홀·뷔페 서빙은 주로 주말에 몰려 있는, 활동량 많은 단기 알바예요. 음식·접시를 나르고 테이블을 세팅·정리하는 일이 빠르게 돌아가 체력 소모가 크지만, 하루 단위로 일당을 챙길 수 있어요. 격식 있는 자리라 단정한 용모와 기본 매너가 중요해요.",
     doing:["음식·접시 서빙","테이블 세팅·정리","행사장 준비·마무리"],
     goodFor:"주말에 짧고 굵게, 몸 쓰는 일로 벌고 싶은 사람에게 맞아요.",
     hard:["짧은 시간에 많은 그릇을 나르는 고강도예요.","행사 특성상 시간을 넘겨 일할 때가 있어요."],
     tips:["편한 신발이 하루를 좌우해요.","단정한 용모·복장 규정을 미리 확인하세요."] },
-  { id:"babysit", emoji:"🍼", name:"아이 돌봄(베이비시터)", tag:"돌봄 · 책임감", pay:4, physical:2, social:3, learn:3, flex:false,
+  { id:"babysit", emoji:"🍼", name:"아이 돌봄(베이비시터)", tag:"돌봄 · 책임감",
     oneLine:"아이를 돌보고 챙기는 책임감이 필요한 돌봄 알바",
     about:"아이 돌봄(베이비시터)은 부모 대신 아이를 안전하게 돌보고 등·하원, 놀이, 간단한 식사를 챙기는 알바예요. 아이를 좋아하고 세심하게 챙기는 사람에게 보람이 크고, 시급도 괜찮은 편이에요. 무엇보다 아이의 안전이 최우선이라 책임감과 신뢰가 크게 요구돼요.",
     doing:["아이 돌봄·놀이","등·하원 동행","간단 식사·정리"],
@@ -1200,13 +1200,7 @@ const AXIS_INFO = {
   P: { key:"시급과 효율이 최우선이에요" },
   G: { key:"배움과 경험이 남는 일을 골라요" },
 };
-// 축 극성별 선호 근무 환경 태그
-const ENV_TAG = {
-  E:"👥 손님·동료 응대가 있는 곳", I:"🎧 혼자 집중할 수 있는 곳",
-  D:"🏃 몸을 움직이는 활동적인 곳", C:"🪑 앉거나 한자리서 차분한 곳",
-  F:"📅 유연·단기 스케줄", S:"📌 고정·장기 스케줄",
-  P:"💰 시급·효율이 좋은 곳", G:"🌱 배울 게 있는 곳",
-};
+// 근무 환경 태그는 유료라 여기 없다 — 서버가 구매자에게만 GET /api/me/report 로 내려준다.
 const QUIZ = [
   // Round 1
   { ax:0, q:"새 알바 첫날의 나는?", a:["E","먼저 말 걸며 분위기 파악"], b:["I","조용히 일부터 익힘"] },
@@ -1264,33 +1258,9 @@ const PERSONAS = {
   ICSG:{ emoji:"🔬", nick:"몰입형 연구러", tag:"한자리에서 깊게 파고들기", desc:"조용히 한자리에서 깊게 몰입하며 꼼꼼히 파고드는 타입이에요. 남들이 놓치는 디테일까지 챙기고, 한 가지를 오래 붙잡아 완성도를 끌어올리는 데서 만족을 느껴요. 빠른 회전이나 멀티태스킹보다, 집중해서 깊이 있게 다룰 수 있는 일에서 가장 빛나요.", strengths:["깊은 몰입","꼼꼼함"], caution:"빠른 회전·멀티태스킹은 힘들어요." },
 };
 
-/* 축 점수 → 유형 매칭 */
-function typeScore(code, t) {
-  let s = 0;
-  s += code[0] === "E" ? t.social : (6 - t.social);
-  s += code[1] === "D" ? t.physical : (6 - t.physical);
-  s += code[2] === "F" ? (t.flex ? 3 : 0) : (t.flex ? 0 : 2);
-  s += code[3] === "P" ? t.pay : t.learn;
-  return s;
-}
-function recommendTypes(code) {
-  const ranked = TYPES.map((t) => ({ t, s: typeScore(code, t) })).sort((a, b) => b.s - a.s);
-  const max = ranked[0].s || 1;
-  return ranked.map((r) => ({ ...r, pct: Math.min(98, 60 + Math.round((r.s / max) * 38)) }));
-}
-// 코드 vs 유형 — 축별로 잘 맞는 이유를 문장으로 생성(강한 것 순으로 최대 3개)
-function matchReasons(code, t) {
-  const r = [];
-  if (code[0] === "E" && t.social >= 4) r.push("손님·동료 응대가 많아 응대형인 당신에게 활력이 돼요");
-  if (code[0] === "I" && t.social <= 2) r.push("혼자 조용히 할 수 있어 독립형인 당신에게 편해요");
-  if (code[1] === "D" && t.physical >= 4) r.push("계속 몸을 움직여 활동형인 당신에게 시간이 잘 가요");
-  if (code[1] === "C" && t.physical <= 2) r.push("체력 부담이 적어 차분형인 당신에게 잘 맞아요");
-  if (code[2] === "F" && t.flex) r.push("단기·유연 근무라 유연형인 당신과 궁합이 좋아요");
-  if (code[2] === "S" && !t.flex) r.push("꾸준히 다니기 좋아 성실형인 당신에게 안정적이에요");
-  if (code[3] === "P" && t.pay >= 3) r.push("시급이 괜찮아 실속형인 당신에게 매력적이에요");
-  if (code[3] === "G" && t.learn >= 4) r.push("배울 게 많아 성장형인 당신에게 도움이 돼요");
-  return r.slice(0, 3);
-}
+/* 추천 계산(점수표·매칭 근거)은 유료라 전부 서버에 있다 — GET /api/me/report.
+   여기엔 서버가 준 id 를 화면에 그릴 때 쓸 조회표만 둔다. */
+const TYPE_BY_ID = Object.fromEntries(TYPES.map((t) => [t.id, t]));
 function relatedBasics(code) {
   const beginnerish = code[3] === "G";
   return beginnerish ? BASICS.filter((b) => ["contract","firstday","interview","wage"].includes(b.id))
@@ -1740,21 +1710,25 @@ function Quiz({ onDone, onBack }) {
 
 function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, onBuy }) {
   const { code, axisPct } = result;
-  // 프리미엄 상세 해설은 번들에 없다 — 구매자일 때만 서버에서 받아온다.
-  const [axisDesc, setAxisDesc] = useState(null);
+  /* 프리미엄 본문(축 해설·환경 태그·추천 TOP3·신중히 볼 알바)은 번들에 없다.
+     구매자일 때만 서버에서 통째로 받아온다. report=null 이면 아직 안 샀거나 로딩 중. */
+  const [report, setReport] = useState(null);
   useEffect(() => {
-    if (!paid) { setAxisDesc(null); return; }
-    api("GET", "/api/me/report").then((d) => { if (d && d.ok && d.axis) setAxisDesc(d.axis); });
-  }, [paid]);
+    if (!paid) { setReport(null); return; }
+    api("GET", `/api/me/report?code=${encodeURIComponent(code)}`)
+      .then((d) => { if (d && d.ok) setReport(d); });
+  }, [paid, code]);
   const p = PERSONAS[code];
-  const recs = useMemo(() => recommendTypes(code), [code]);
-  const top = recs.slice(0, 3);
-  const worst = recs[recs.length - 1];
   const basics = useMemo(() => relatedBasics(code), [code]);
-  const envTags = code.split("").map((ch) => ENV_TAG[ch]);
+  // 서버가 준 id 를 화면용 유형 데이터로 바꿔둔다.
+  const top = (report && report.top || []).map((r) => ({ ...r, t: TYPE_BY_ID[r.id] })).filter((r) => r.t);
+  const worst = report && report.worst && TYPE_BY_ID[report.worst.id]
+    ? { ...report.worst, t: TYPE_BY_ID[report.worst.id] } : null;
   const summary = code.split("").map((ch) => AXIS_INFO[ch].key).join(" · ");
   const share = () => {
-    const txt = `내 알바 MBTI는 ${code} ${p.emoji} ${p.nick}!\n잘 맞는 알바: ${top.map((r) => r.t.name).join(", ")}\n#알바MBTI`;
+    // 추천은 유료라 공유 문구에서도 산 사람일 때만 붙인다.
+    const picks = top.length ? `\n잘 맞는 알바: ${top.map((r) => r.t.name).join(", ")}` : "";
+    const txt = `내 알바 MBTI는 ${code} ${p.emoji} ${p.nick}!${picks}\n#알바MBTI`;
     try { navigator.clipboard.writeText(txt); alert("결과를 복사했어요! 붙여넣기로 공유하세요 📋"); }
     catch (e) { alert(txt); }
   };
@@ -1795,122 +1769,133 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
         </div>
       </div>
 
-      {/* 성향 상세 분석 — 프리미엄. 첫 축만 맛보기로 보여주고 나머지는 잠근다. */}
-      <div className="px-5 py-5 bg-white mt-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-bold text-gray-900">🧠 내 성향 자세히 보기</h2>
-          {!paid && <span className="text-[10px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">PREMIUM</span>}
-        </div>
-        <p className="text-xs text-gray-400 mt-1">{summary}</p>
-        <div className="mt-3 space-y-2.5">
-          {(paid ? axisPct : axisPct.slice(0, 1)).map((x, i) => {
-            const info = AXIS_INFO[x.lead];
-            const desc = axisDesc ? axisDesc[x.lead] : null;
-            return (
-              <div key={i} className="bg-gray-50 rounded-2xl p-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-semibold text-brand bg-brandLt px-2 py-0.5 rounded-full">{x.lead} {AXIS_LABEL[x.lead]}</span>
-                  <span className="text-[11px] font-semibold text-gray-400">{x.pct}%</span>
-                  <span className="text-sm font-bold text-gray-800 ml-auto">{info.key}</span>
-                </div>
-                {/* 구매자는 서버에서 받은 해설, 로딩 중엔 자리만 잡아둔다. */}
-                {desc
-                  ? <p className="text-[13px] text-gray-500 leading-relaxed mt-2">{desc}</p>
-                  : paid && <div className="mt-3 space-y-1.5"><div className="h-2.5 w-full bg-gray-100 rounded-full" /><div className="h-2.5 w-3/5 bg-gray-100 rounded-full" /></div>}
-              </div>
-            );
-          })}
-        </div>
-
-        {!paid && (
-          <div className="relative mt-2.5">
-            {/* 잠긴 부분 미리보기 — 내용은 흐리게 깔고 그 위에 결제 카드를 얹는다 */}
-            <div className="space-y-2.5 blur-[5px] select-none pointer-events-none" aria-hidden="true">
-              {axisPct.slice(1).map((x, i) => (
-                <div key={i} className="bg-gray-50 rounded-2xl p-4">
-                  <div className="h-3 w-24 bg-gray-200 rounded-full" />
-                  <div className="h-2.5 w-full bg-gray-100 rounded-full mt-3" />
-                  <div className="h-2.5 w-4/5 bg-gray-100 rounded-full mt-1.5" />
-                </div>
-              ))}
-            </div>
-            <div className="absolute inset-0 grid place-items-center px-2">
-              <div className="w-full bg-white/95 backdrop-blur-sm border border-gray-100 shadow-card rounded-2xl p-5 text-center">
-                <div className="text-3xl">🔒</div>
-                <h3 className="font-bold text-[15px] text-gray-900 mt-2">나머지 3개 축 상세 분석</h3>
-                <p className="text-[13px] text-gray-500 leading-relaxed mt-1.5">
-                  내 성향이 왜 이렇게 나왔는지, 어떤 상황에서 강점이 되는지<br />4개 축 전체를 자세히 풀어드려요.
-                </p>
-                <button onClick={onBuy} className="mt-4 w-full bg-brand text-white font-bold py-3 rounded-xl press text-sm">
-                  {price != null ? `${price.toLocaleString()}원으로 전체 보기` : "프리미엄으로 전체 보기"}
-                </button>
-                <p className="text-[11px] text-gray-400 mt-2">한 번 결제하면 계속 볼 수 있어요</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 잘 맞는 근무 환경 */}
-      <div className="px-5 py-5 bg-white mt-2">
-        <h2 className="text-lg font-bold text-gray-900">🧭 이런 근무 환경이 잘 맞아요</h2>
-        <div className="flex flex-wrap gap-2 mt-3">
-          {envTags.map((t, i) => <span key={i} className="text-sm bg-gray-50 text-gray-700 font-medium px-3 py-1.5 rounded-xl border border-gray-100">{t}</span>)}
-        </div>
-      </div>
-
-      <div className="px-5 py-5 bg-white mt-2">
-        <h2 className="text-lg font-bold text-gray-900">🎯 잘 맞는 알바 TOP 3</h2>
-        <div className="mt-3 space-y-3">
-          {top.map((r, idx) => (
-            <div key={r.t.id} className="rise border border-gray-100 rounded-2xl shadow-card p-4" style={{ animationDelay: `${idx * 70}ms` }}>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gray-50 rounded-xl grid place-items-center text-2xl shrink-0">{r.t.emoji}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">{idx === 0 ? "BEST" : `${idx + 1}순위`}</span>
-                    <span className="text-[11px] font-semibold text-brand">매칭 {r.pct}%</span>
-                  </div>
-                  <h3 className="font-bold text-[17px] text-gray-900 leading-tight mt-0.5">{r.t.name}</h3>
-                </div>
-              </div>
-              <p className="text-[13px] text-gray-500 mt-2 leading-relaxed">{r.t.oneLine}</p>
-              {matchReasons(code, r.t).length > 0 && (
-                <div className="mt-3 bg-brandLt rounded-xl p-3">
-                  <div className="text-[11px] font-semibold text-brand mb-1.5">왜 잘 맞을까?</div>
-                  <ul className="space-y-1">
-                    {matchReasons(code, r.t).map((why, i) => (
-                      <li key={i} className="flex gap-1.5 text-[13px] text-gray-700 leading-relaxed"><span className="text-brand">✓</span>{why}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <button onClick={() => onGuide({ kind: "type", id: r.t.id })}
-                className="mt-4 w-full bg-brandLt text-brand font-bold py-3 rounded-xl press text-sm">
-                📖 {r.t.name} 가이드 보기
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 신중히 볼 알바 */}
-      {worst && (
+      {/* ──────── 여기부터 프리미엄. 안 산 사람에겐 잠금 카드 하나로 대신한다. ──────── */}
+      {!paid ? (
         <div className="px-5 py-5 bg-white mt-2">
-          <h2 className="text-lg font-bold text-gray-900">⚠️ 이런 알바는 신중히</h2>
-          <div className="mt-3 bg-red-50 rounded-2xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-white rounded-xl grid place-items-center text-xl shrink-0">{worst.t.emoji}</div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-semibold text-red-500">매칭 {worst.pct}% · 낮음</div>
-                <h3 className="font-bold text-[15px] text-gray-900 leading-tight">{worst.t.name}</h3>
-              </div>
+          <div className="border border-brand/20 bg-brandLt/40 rounded-2xl p-5 text-center">
+            <div className="text-3xl">🔒</div>
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              <h3 className="font-bold text-[16px] text-gray-900">프리미엄 상세 리포트</h3>
+              <span className="text-[10px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">PREMIUM</span>
             </div>
-            <p className="text-[13px] text-gray-600 mt-2 leading-relaxed">
-              {p.caution} 성향과 결이 달라, 시작 전 근무 조건을 특히 꼼꼼히 확인하는 걸 권해요.
+            <p className="text-[13px] text-gray-500 leading-relaxed mt-1.5">
+              {code} 성향을 바탕으로 나에게 맞는 알바를<br />43종 전체에서 가려내 드려요.
             </p>
+            <ul className="mt-4 space-y-2 text-left">
+              {[
+                ["🧠", "내 성향 자세히 보기", "4개 축을 하나씩 풀어서 해설"],
+                ["🧭", "이런 근무 환경이 잘 맞아요", "내게 맞는 환경 태그"],
+                ["🎯", "잘 맞는 알바 TOP 3", "매칭률과 '왜 잘 맞는지' 근거까지"],
+                ["⚠️", "이런 알바는 신중히", "결이 안 맞는 알바 미리 알기"],
+              ].map(([icon, title, sub], i) => (
+                <li key={i} className="flex gap-2.5 items-start bg-white rounded-xl p-3 border border-gray-100">
+                  <span className="text-lg leading-none mt-0.5">{icon}</span>
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-bold text-gray-900">{title}</div>
+                    <div className="text-[12px] text-gray-500 mt-0.5">{sub}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <button onClick={onBuy} className="mt-4 w-full bg-brand text-white font-bold py-3 rounded-xl press text-sm">
+              {price != null ? `${price.toLocaleString()}원으로 전체 보기` : "프리미엄으로 전체 보기"}
+            </button>
+            <p className="text-[11px] text-gray-400 mt-2">한 번 결제하면 계속 볼 수 있어요</p>
           </div>
         </div>
+      ) : (
+        <React.Fragment>
+          {/* 성향 상세 분석 */}
+          <div className="px-5 py-5 bg-white mt-2">
+            <h2 className="text-lg font-bold text-gray-900">🧠 내 성향 자세히 보기</h2>
+            <p className="text-xs text-gray-400 mt-1">{summary}</p>
+            <div className="mt-3 space-y-2.5">
+              {axisPct.map((x, i) => {
+                const info = AXIS_INFO[x.lead];
+                const desc = report && report.axis ? report.axis[x.lead] : null;
+                return (
+                  <div key={i} className="bg-gray-50 rounded-2xl p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-brand bg-brandLt px-2 py-0.5 rounded-full">{x.lead} {AXIS_LABEL[x.lead]}</span>
+                      <span className="text-[11px] font-semibold text-gray-400">{x.pct}%</span>
+                      <span className="text-sm font-bold text-gray-800 ml-auto">{info.key}</span>
+                    </div>
+                    {/* 해설은 서버에서 온다 — 오는 동안엔 자리만 잡아둔다. */}
+                    {desc
+                      ? <p className="text-[13px] text-gray-500 leading-relaxed mt-2">{desc}</p>
+                      : <div className="mt-3 space-y-1.5"><div className="h-2.5 w-full bg-gray-100 rounded-full" /><div className="h-2.5 w-3/5 bg-gray-100 rounded-full" /></div>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 잘 맞는 근무 환경 */}
+          {report && report.envTags && (
+            <div className="px-5 py-5 bg-white mt-2">
+              <h2 className="text-lg font-bold text-gray-900">🧭 이런 근무 환경이 잘 맞아요</h2>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {report.envTags.map((t, i) => <span key={i} className="text-sm bg-gray-50 text-gray-700 font-medium px-3 py-1.5 rounded-xl border border-gray-100">{t}</span>)}
+              </div>
+            </div>
+          )}
+
+          {top.length > 0 && (
+            <div className="px-5 py-5 bg-white mt-2">
+              <h2 className="text-lg font-bold text-gray-900">🎯 잘 맞는 알바 TOP 3</h2>
+              <div className="mt-3 space-y-3">
+                {top.map((r, idx) => (
+                  <div key={r.t.id} className="rise border border-gray-100 rounded-2xl shadow-card p-4" style={{ animationDelay: `${idx * 70}ms` }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gray-50 rounded-xl grid place-items-center text-2xl shrink-0">{r.t.emoji}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">{idx === 0 ? "BEST" : `${idx + 1}순위`}</span>
+                          <span className="text-[11px] font-semibold text-brand">매칭 {r.pct}%</span>
+                        </div>
+                        <h3 className="font-bold text-[17px] text-gray-900 leading-tight mt-0.5">{r.t.name}</h3>
+                      </div>
+                    </div>
+                    <p className="text-[13px] text-gray-500 mt-2 leading-relaxed">{r.t.oneLine}</p>
+                    {r.reasons && r.reasons.length > 0 && (
+                      <div className="mt-3 bg-brandLt rounded-xl p-3">
+                        <div className="text-[11px] font-semibold text-brand mb-1.5">왜 잘 맞을까?</div>
+                        <ul className="space-y-1">
+                          {r.reasons.map((why, i) => (
+                            <li key={i} className="flex gap-1.5 text-[13px] text-gray-700 leading-relaxed"><span className="text-brand">✓</span>{why}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <button onClick={() => onGuide({ kind: "type", id: r.t.id })}
+                      className="mt-4 w-full bg-brandLt text-brand font-bold py-3 rounded-xl press text-sm">
+                      📖 {r.t.name} 가이드 보기
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 신중히 볼 알바 */}
+          {worst && (
+            <div className="px-5 py-5 bg-white mt-2">
+              <h2 className="text-lg font-bold text-gray-900">⚠️ 이런 알바는 신중히</h2>
+              <div className="mt-3 bg-red-50 rounded-2xl p-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 bg-white rounded-xl grid place-items-center text-xl shrink-0">{worst.t.emoji}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-semibold text-red-500">매칭 {worst.pct}% · 낮음</div>
+                    <h3 className="font-bold text-[15px] text-gray-900 leading-tight">{worst.t.name}</h3>
+                  </div>
+                </div>
+                <p className="text-[13px] text-gray-600 mt-2 leading-relaxed">
+                  {p.caution} 성향과 결이 달라, 시작 전 근무 조건을 특히 꼼꼼히 확인하는 걸 권해요.
+                </p>
+              </div>
+            </div>
+          )}
+        </React.Fragment>
       )}
 
       <div className="px-5 py-5 bg-white mt-2">
