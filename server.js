@@ -15,6 +15,9 @@ const ADMIN_EMAIL = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 const DATABASE_URL = process.env.DATABASE_URL || "";
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, "data", "users.json");
+// 어떤 커밋이 떠 있는지 밖에서 확인할 수 있게 /api/health 에 실어 보낸다.
+// Render 가 배포마다 RENDER_GIT_COMMIT 을 자동 주입한다(로컬은 "dev").
+const COMMIT = String(process.env.RENDER_GIT_COMMIT || "").trim().slice(0, 7) || "dev";
 
 /* ---------- 나이스페이 (NICEPAY API V2 · 서버승인 모델) ----------
    키가 없으면 결제 기능 전체가 꺼진 채로 뜬다(앱은 지금처럼 전면 무료로 동작).
@@ -946,7 +949,7 @@ app.post("/api/admin/payments/:orderId/cancel", requireAdmin, ah(async (req, res
 }));
 
 // 헬스체크 + 결제 상태. Render 서비스에 healthCheckPath=/api/config 가 남아 있어도 통과하도록 경로를 유지한다.
-app.get(["/api/health", "/api/config"], (req, res) => res.json({ ok: true, free: !PAY_ON }));
+app.get(["/api/health", "/api/config"], (req, res) => res.json({ ok: true, free: !PAY_ON, commit: COMMIT }));
 
 app.use(express.static(path.join(__dirname, "public")));
 
