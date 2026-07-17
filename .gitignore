@@ -6,6 +6,7 @@ npm-debug.log*
 .env.*
 !.env.example
 toss_key.txt
+nicepay_key.txt
 
 # 로고 원본(작업용) — 실제 앱 아이콘은 public/icons/ 에 있음
 /icons/

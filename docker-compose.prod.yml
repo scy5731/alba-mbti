@@ -5,6 +5,9 @@ services:
     build: .
     image: alba-app
     container_name: alba_app
+    # .env 를 컨테이너 환경변수로 그대로 넘긴다(나이스페이 키·세션키·DB URL 등).
+    env_file:
+      - .env
     expose:
       - "3000"          # 외부에 직접 노출하지 않고 Caddy 내부망으로만
     restart: unless-stopped

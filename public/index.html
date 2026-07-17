@@ -33,6 +33,8 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<!-- 나이스페이 결제창 SDK — window.AUTHNICE 를 띄운다 -->
+<script src="https://pay.nicepay.co.kr/v1/js/"></script>
 <script>
   tailwind.config = { theme: { extend: {
     colors: { brand:'#1BB055', brandDark:'#17924A', brandLt:'#E8F8EE', ink:'#222222' },
@@ -120,6 +122,24 @@ async function api(method, url, body) {
   if (body) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
   try { const r = await fetch(url, opt); let d = {}; try { d = await r.json(); } catch (e) {} return { status: r.status, ...d }; }
   catch (e) { return { status: 0, ok: false, error: "네트워크 오류예요." }; }
+}
+
+/* ---------- 결제 (나이스페이) ----------
+   서버에서 주문을 만들고(금액은 서버 상품표 기준) 그 값으로 결제창을 띄운다.
+   결제창이 닫히면 브라우저는 서버의 returnUrl 로 갔다가 /?pay=ok|fail 로 되돌아온다. */
+async function startPayment(product) {
+  if (!window.AUTHNICE) { alert("결제 모듈을 불러오지 못했어요. 새로고침 후 다시 시도해 주세요."); return; }
+  const d = await api("POST", "/api/pay/prepare", { product });
+  if (!d.ok) { alert(d.error || "결제를 시작할 수 없어요."); return; }
+  window.AUTHNICE.requestPay({
+    clientId: d.clientId,
+    method: "card",
+    orderId: d.orderId,
+    amount: d.amount,
+    goodsName: d.goodsName,
+    returnUrl: d.returnUrl,
+    fnError: (r) => alert((r && (r.errorMsg || r.msg)) || "결제 중 오류가 발생했어요."),
+  });
 }
 /* ============================================================
    알바 유형 (15종) — 성향 축 속성으로 매칭
@@ -1168,15 +1188,17 @@ const CHECKLIST = [
 const AXES = [["E","I"], ["D","C"], ["F","S"], ["P","G"]];
 const AXIS_LABEL = { E:"응대형", I:"독립형", D:"활동형", C:"차분형", F:"유연형", S:"꾸준형", P:"실속형", G:"성장형" };
 // 축 극성별 상세 해설 — 리포트 "성향 자세히 보기"에서 내 극성 기준으로 노출
+// 축 극성별 한 줄 요약(무료). 상세 해설(desc)은 유료라 여기 두지 않는다 —
+// 번들에 넣으면 개발자도구로 그냥 읽힌다. 서버가 구매자에게만 GET /api/me/report 로 내려준다.
 const AXIS_INFO = {
-  E: { key:"사람과의 접점에서 힘이 나요", desc:"손님·동료와 부딪히는 상황에서 오히려 에너지를 얻어요. 응대가 많은 자리일수록 지루하지 않고, 매장 분위기를 살리는 역할도 자연스럽게 해내요." },
-  I: { key:"내 페이스로 조용히 할 때 집중돼요", desc:"북적임보다 혼자만의 리듬으로 일할 때 능률이 올라요. 과한 감정노동은 금세 지치니, 응대 강도가 낮고 조용한 자리가 편해요." },
-  D: { key:"몸을 움직여야 시간이 잘 가요", desc:"가만히 대기하는 것보다 계속 움직이는 근무에서 활력이 나요. 체력을 쓰는 일도 오히려 개운하게 느끼고, 정적인 대기는 답답해해요." },
-  C: { key:"한자리에서 집중하는 게 좋아요", desc:"정신없이 뛰는 것보다 앉거나 한자리에서 차분히 처리하는 일이 잘 맞아요. 무리한 육체노동은 피하고, 꼼꼼함이 필요한 일에서 강점을 보여요." },
-  F: { key:"그때그때 유연한 스케줄이 좋아요", desc:"고정된 요일보다 상황에 맞춰 유연하게 일하는 걸 선호해요. 단기·하루 알바로 여러 경험을 빠르게 쌓는 것도 잘 맞아요." },
-  S: { key:"정한 스케줄을 꾸준히 지켜요", desc:"한 곳을 정해 오래 다니며 신뢰를 쌓는 데서 안정감을 느껴요. 자주 바뀌는 환경보다 예측 가능한 루틴에서 실력이 붙어요." },
-  P: { key:"시급과 효율이 최우선이에요", desc:"같은 시간이면 확실한 벌이가 중요해요. 시급·동선·효율을 꼼꼼히 따져 실속 있게 일하는 걸 선호해요." },
-  G: { key:"배움과 경험이 남는 일을 골라요", desc:"당장의 시급보다 뭘 배우고 남기는지를 더 봐요. 경험·커리어에 도움이 되는 일이면 조금 힘들어도 기꺼이 도전해요." },
+  E: { key:"사람과의 접점에서 힘이 나요" },
+  I: { key:"내 페이스로 조용히 할 때 집중돼요" },
+  D: { key:"몸을 움직여야 시간이 잘 가요" },
+  C: { key:"한자리에서 집중하는 게 좋아요" },
+  F: { key:"그때그때 유연한 스케줄이 좋아요" },
+  S: { key:"정한 스케줄을 꾸준히 지켜요" },
+  P: { key:"시급과 효율이 최우선이에요" },
+  G: { key:"배움과 경험이 남는 일을 골라요" },
 };
 // 축 극성별 선호 근무 환경 태그
 const ENV_TAG = {
@@ -1716,8 +1738,14 @@ function Quiz({ onDone, onBack }) {
   );
 }
 
-function Result({ result, onRetry, onGuide, onHome }) {
+function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, onBuy }) {
   const { code, axisPct } = result;
+  // 프리미엄 상세 해설은 번들에 없다 — 구매자일 때만 서버에서 받아온다.
+  const [axisDesc, setAxisDesc] = useState(null);
+  useEffect(() => {
+    if (!paid) { setAxisDesc(null); return; }
+    api("GET", "/api/me/report").then((d) => { if (d && d.ok && d.axis) setAxisDesc(d.axis); });
+  }, [paid]);
   const p = PERSONAS[code];
   const recs = useMemo(() => recommendTypes(code), [code]);
   const top = recs.slice(0, 3);
@@ -1767,13 +1795,17 @@ function Result({ result, onRetry, onGuide, onHome }) {
         </div>
       </div>
 
-      {/* 성향 상세 분석 */}
+      {/* 성향 상세 분석 — 프리미엄. 첫 축만 맛보기로 보여주고 나머지는 잠근다. */}
       <div className="px-5 py-5 bg-white mt-2">
-        <h2 className="text-lg font-bold text-gray-900">🧠 내 성향 자세히 보기</h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-bold text-gray-900">🧠 내 성향 자세히 보기</h2>
+          {!paid && <span className="text-[10px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">PREMIUM</span>}
+        </div>
         <p className="text-xs text-gray-400 mt-1">{summary}</p>
         <div className="mt-3 space-y-2.5">
-          {axisPct.map((x, i) => {
+          {(paid ? axisPct : axisPct.slice(0, 1)).map((x, i) => {
             const info = AXIS_INFO[x.lead];
+            const desc = axisDesc ? axisDesc[x.lead] : null;
             return (
               <div key={i} className="bg-gray-50 rounded-2xl p-4">
                 <div className="flex items-center gap-2">
@@ -1781,11 +1813,42 @@ function Result({ result, onRetry, onGuide, onHome }) {
                   <span className="text-[11px] font-semibold text-gray-400">{x.pct}%</span>
                   <span className="text-sm font-bold text-gray-800 ml-auto">{info.key}</span>
                 </div>
-                <p className="text-[13px] text-gray-500 leading-relaxed mt-2">{info.desc}</p>
+                {/* 구매자는 서버에서 받은 해설, 로딩 중엔 자리만 잡아둔다. */}
+                {desc
+                  ? <p className="text-[13px] text-gray-500 leading-relaxed mt-2">{desc}</p>
+                  : paid && <div className="mt-3 space-y-1.5"><div className="h-2.5 w-full bg-gray-100 rounded-full" /><div className="h-2.5 w-3/5 bg-gray-100 rounded-full" /></div>}
               </div>
             );
           })}
         </div>
+
+        {!paid && (
+          <div className="relative mt-2.5">
+            {/* 잠긴 부분 미리보기 — 내용은 흐리게 깔고 그 위에 결제 카드를 얹는다 */}
+            <div className="space-y-2.5 blur-[5px] select-none pointer-events-none" aria-hidden="true">
+              {axisPct.slice(1).map((x, i) => (
+                <div key={i} className="bg-gray-50 rounded-2xl p-4">
+                  <div className="h-3 w-24 bg-gray-200 rounded-full" />
+                  <div className="h-2.5 w-full bg-gray-100 rounded-full mt-3" />
+                  <div className="h-2.5 w-4/5 bg-gray-100 rounded-full mt-1.5" />
+                </div>
+              ))}
+            </div>
+            <div className="absolute inset-0 grid place-items-center px-2">
+              <div className="w-full bg-white/95 backdrop-blur-sm border border-gray-100 shadow-card rounded-2xl p-5 text-center">
+                <div className="text-3xl">🔒</div>
+                <h3 className="font-bold text-[15px] text-gray-900 mt-2">나머지 3개 축 상세 분석</h3>
+                <p className="text-[13px] text-gray-500 leading-relaxed mt-1.5">
+                  내 성향이 왜 이렇게 나왔는지, 어떤 상황에서 강점이 되는지<br />4개 축 전체를 자세히 풀어드려요.
+                </p>
+                <button onClick={onBuy} className="mt-4 w-full bg-brand text-white font-bold py-3 rounded-xl press text-sm">
+                  {price != null ? `${price.toLocaleString()}원으로 전체 보기` : "프리미엄으로 전체 보기"}
+                </button>
+                <p className="text-[11px] text-gray-400 mt-2">한 번 결제하면 계속 볼 수 있어요</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 잘 맞는 근무 환경 */}
@@ -3319,6 +3382,7 @@ function App() {
   const [postId, setPostId] = useState(null);        // 커뮤니티: 열어본 글
   const [editPost, setEditPost] = useState(null);    // 커뮤니티: 수정 중인 글
   const [feedKey, setFeedKey] = useState(0);         // 목록 새로고침 트리거
+  const [payCfg, setPayCfg] = useState(null);        // /api/pay/config — 결제 켜짐 여부·가격
 
   /* ---------- 뒤로가기(모바일 하드웨어 버튼 / 브라우저) ----------
      화면 전환마다 history 항목을 쌓고, popstate에서 그 화면 상태로 되돌린다.
@@ -3366,6 +3430,27 @@ function App() {
       window.dispatchEvent(new Event("app-ready"));
     });
   }, []);
+  // 결제가 켜져 있는지·가격이 얼마인지는 서버가 정한다.
+  useEffect(() => { api("GET", "/api/pay/config").then((d) => setPayCfg(d && d.ok ? d : { enabled: false })); }, []);
+
+  // 결제창에서 돌아온 직후 — 서버가 /?pay=ok|fail 로 되돌려준다.
+  // 결과만 알리고 주소는 즉시 정리한다(새로고침 때 또 뜨지 않도록).
+  useEffect(() => {
+    if (!authReady) return;
+    const q = new URLSearchParams(window.location.search);
+    const pay = q.get("pay");
+    if (!pay) return;
+    const reason = q.get("reason");
+    window.history.replaceState({ nav: navRef.current }, "", window.location.pathname);
+    if (pay === "ok") {
+      alert("결제가 완료됐어요! 프리미엄 리포트가 열렸어요 🎉");
+      // 구매 여부는 서버가 판단한다 — 프론트에서 켜지 않고 다시 물어본다.
+      api("GET", "/api/auth/me").then((d) => { if (d && d.user) { setUser(d.user); go({ overlay: "result" }); } });
+    } else {
+      alert(reason || "결제가 완료되지 않았어요.");
+    }
+  }, [authReady]);
+
   const onAuthed = (u) => { setUser(u); if (u.result && u.result.code) { setResult(u.result); LS.set("result", u.result); } };
   // 로그아웃하면 다시 초기화면(로그인 게이트)으로 떨어진다. 앱 안의 상태도 비운다.
   const onLogout = () => { setUser(null); setResult(null); LS.set("result", null); go({ overlay: null, tab: "home" }); };
@@ -3383,12 +3468,19 @@ function App() {
   // 로그인해야 앱 안으로 들어올 수 있다.
   if (!user) return <div className="phone noscroll"><AuthGate onAuthed={onAuthed} /></div>;
 
+  // 프리미엄 리포트 구매 여부. 결제가 꺼져 있으면(키 미설정) 전부 무료 — 잠그지 않는다.
+  const payOn = !!(payCfg && payCfg.enabled);
+  const reportPaid = !payOn || !!(user.entitlements && user.entitlements.premium_report);
+  const reportPrice = payOn && payCfg.products && payCfg.products.premium_report
+    ? payCfg.products.premium_report.amount : null;
+
   return (
     <div className="phone noscroll">
       {/* 몰입 화면(탭바 숨김) */}
       {overlay === "quiz" && <Quiz onDone={done} onBack={back} />}
       {overlay === "result" && result &&
-        <Result result={result} onRetry={() => go({ overlay: "quiz" })} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")} />}
+        <Result result={result} onRetry={() => go({ overlay: "quiz" })} onGuide={(t) => openGuide(t, "result")} onHome={() => goTab("home")}
+          paid={reportPaid} price={reportPrice} onBuy={() => startPayment("premium_report")} />}
       {overlay === "post" && postId && <PostDetail id={postId} onBack={back}
         onEdit={(p) => { setEditPost(p); go({ overlay: "write" }); }}
         onDeleted={() => { setFeedKey((k) => k + 1); goTab("community"); }}

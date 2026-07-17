@@ -3,6 +3,9 @@ services:
     build: .
     image: alba-app
     container_name: alba_app
+    # .env 를 컨테이너 환경변수로 그대로 넘긴다(나이스페이 키·세션키·DB URL 등).
+    env_file:
+      - .env
     ports:
       # 왼쪽(호스트) 포트만 .env의 HOST_PORT로 바꿀 수 있어요. 기본 8080
       - "${HOST_PORT:-8080}:3000"

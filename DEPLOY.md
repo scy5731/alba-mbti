@@ -3,7 +3,7 @@
 설치형 웹앱(PWA)을 GCP VM에 Docker로 배포한다. 앞단 **Caddy**가 Let's Encrypt 인증서를
 자동 발급/갱신하고, 뒤의 앱 컨테이너(Node/Express)로 프록시한다.
 > PWA(서비스워커)는 **HTTPS + 실도메인**이 필수라 이 구성이 필요하다.
-> 앱은 현재 **전면 무료**라 결제 관련 설정은 없다.
+> 결제는 **나이스페이(NICEPAY API V2)** 연동. 아래 "결제 — 나이스페이" 절 참고.
 
 ---
 
@@ -36,11 +36,15 @@ git clone <repo> alba_app && cd alba_app
 ```
 
 ## 4. 환경변수(.env) 설정
-`.env`를 열어 **도메인**을 채운다. 결제 키는 이제 필요 없다(전면 무료).
+`.env`를 열어 **도메인**과 **나이스페이 키**를 채운다(compose 가 `env_file` 로 컨테이너에 넘긴다).
 ```
 DOMAIN=albamates.com
+NICEPAY_CLIENT_KEY=R2_...
+NICEPAY_SECRET_KEY=...
+PRICE_PREMIUM_REPORT=2990
+PUBLIC_BASE_URL=https://albamates.com
 ```
-> `.env` 는 커밋/공유하지 말 것.
+> `.env` 와 `nicepay_key.txt` 는 커밋/공유하지 말 것(.gitignore 에 있음).
 
 ## 5. 기동
 ```bash
@@ -74,13 +78,30 @@ docker compose up -d --build     # http://localhost:8080
 
 ---
 
-## 나중에: 결제 도입할 때
-현재는 **전면 무료**다. 결제 코드(포트원 V2 연동 + 페이월 + premium 컬럼)는 전부 제거했고,
-필요해지면 git 히스토리에서 되살리면 된다.
-1. **사업자등록** 후 PG 계약/심사 (포트원 V2 기준으로 만들어 뒀었다)
-2. 서버에 `/api/config`·`/api/confirm` 재도입 — 금액·상태는 **서버가 PG API로 재조회해 검증**
-3. 프론트에 페이월 복구 + 결과 화면을 `user.premium` 으로 다시 게이팅
-4. Render 헬스체크(`healthCheckPath`)를 `/api/config` 로 되돌릴지 판단(지금은 `/`)
+## 결제 — 나이스페이 (2026-07-17 도입)
+**NICEPAY API V2 · 서버승인 모델**. 상품은 `premium_report`(프리미엄 상세 리포트) 단건, 2,990원.
+
+**환경변수** (Render 대시보드 → Environment 에서 직접 입력. 레포에 커밋 금지)
+| 키 | 값 | 비고 |
+|---|---|---|
+| `NICEPAY_CLIENT_KEY` | `R2_...` | **`R2_`=실 운영(진짜 출금)**, `S2_`=샌드박스 |
+| `NICEPAY_SECRET_KEY` | (시크릿) | Basic 인증용 |
+| `PRICE_PREMIUM_REPORT` | `2990` | render.yaml 에 선언됨 |
+| `PUBLIC_BASE_URL` | `https://albamates.com` | returnUrl 기준 도메인 |
+
+**두 키가 다 없으면 결제 기능이 꺼진 채로 뜬다**(앱은 전면 무료로 동작). 안전한 기본값이다.
+
+**흐름**: 결제창(`AUTHNICE.requestPay`) → 나이스페이가 `/api/pay/return` 으로 POST →
+서버가 `authResultCode`·서명(`hex(sha256(authToken+clientId+amount+secretKey))`)·금액을 검증 →
+`POST api.nicepay.co.kr/v1/payments/{tid}` 로 최종 승인 → `payments` 테이블에 `paid` 기록.
+- **금액은 서버 상품표(`PRODUCTS`)에서만** 가져온다. 프론트가 보낸 금액은 쓰지 않는다(변조 책임은 가맹점에 있음).
+- 프리미엄 본문은 `server.js` 의 `PREMIUM_AXIS_DESC` 에 있고 `GET /api/me/report` 가 구매자에게만 내려준다. **프론트 번들에 넣지 말 것** — 넣으면 개발자도구로 그냥 읽힌다.
+
+**환불**: `ADMIN_EMAIL` 계정으로 로그인 후
+`POST /api/admin/payments/:orderId/cancel` (body `{"reason":"..."}`). 내역은 `GET /api/admin/payments`.
+아직 관리자 화면 UI 는 없고 API 만 있다.
+
+**도메인 주의**: 가오픈 상점은 등록된 도메인에서만 결제창이 열릴 수 있다. `localhost` 에서 거절되면 배포 환경에서 테스트할 것.
 
 ## 참고
 - 인증서·프록시 데이터는 `caddy_data`/`caddy_config` 볼륨에 보존된다.
