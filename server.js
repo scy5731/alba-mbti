@@ -103,17 +103,32 @@ function makePgStore(url) {
   const PAYMENT_DDL = [
     `CREATE TABLE IF NOT EXISTS payments (
         id SERIAL PRIMARY KEY,
-        order_id TEXT UNIQUE NOT NULL,
+        order_id TEXT NOT NULL,
         user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        product TEXT NOT NULL,
-        amount INTEGER NOT NULL,
-        status TEXT NOT NULL,
+        product TEXT,
+        amount INTEGER,
+        status TEXT,
         tid TEXT,
         fail_reason TEXT,
         created_at TIMESTAMPTZ DEFAULT now(),
         paid_at TIMESTAMPTZ,
         cancelled_at TIMESTAMPTZ
       )`,
+    // 옛 토스 시절 payments(order_id, payment_key, amount, user_id, created_at)가 남아 있는 DB에서는
+    // 위 CREATE 가 통째로 무시된다 — 빠진 컬럼을 여기서 채워야 한다(그냥 두면 기동이 죽는다).
+    // 옛 행은 product·status 가 NULL 이라 hasPaid/markPaid 의 조건에 걸리지 않는다(= 무시된다).
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS product TEXT`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS status TEXT`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS tid TEXT`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS fail_reason TEXT`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ`,
+    // 같은 주문이 두 번 들어오는 걸 DB 차원에서 막는다(옛 테이블엔 이 제약이 없었다).
+    // 옛 토스 테이블은 order_id 가 아니라 payment_key 에만 유니크가 걸려 있어서, 결제를 재시도한 주문은
+    // 같은 order_id 로 행이 두 개 남아 있을 수 있다. 그런 DB 에 통짜 유니크를 걸면 인덱스 생성이 23505 로
+    // 터지고 init 이 죽어(=배포 불가) 버리므로, 새 코드가 쓴 행(product NOT NULL)에만 건다.
+    // 새 주문번호는 항상 product 를 채우므로 중복 방지 효과는 그대로다.
+    `CREATE UNIQUE INDEX IF NOT EXISTS payments_order_id_uidx ON payments (order_id) WHERE product IS NOT NULL`,
     `CREATE INDEX IF NOT EXISTS payments_user_idx ON payments (user_id, product, status)`,
   ];
   return {
