@@ -1350,8 +1350,8 @@ function Home({ onGuide, onMbti, onNav, onCat, onCalc, onAccount, user, prev, pa
         <button onClick={onCalc} className="w-full text-left bg-white border border-gray-200 rounded-2xl p-4 flex items-center gap-3 press mt-2.5">
           <div className="w-11 h-11 bg-brandLt rounded-xl grid place-items-center text-2xl shrink-0">🧮</div>
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-[16px] text-gray-900">월급 계산기</div>
-            <div className="text-[13px] text-gray-500 mt-0.5">시급·근무시간으로 월 예상 급여 계산</div>
+            <div className="font-bold text-[16px] text-gray-900">알바 급여 계산기</div>
+            <div className="text-[13px] text-gray-500 mt-0.5">단기·장기로 일급·주급·월급 계산</div>
           </div>
           <span className="text-gray-300 text-xl shrink-0">›</span>
         </button>
@@ -2556,32 +2556,69 @@ function CalcRow({ label, hint, value, set, unit }) {
     </div>
   );
 }
+/* 결과 카드 안의 보조 금액 칩(일급/주급/월급/총액) */
+function CalcFig({ label, value, primary }) {
+  return (
+    <div className={"rounded-xl px-3 py-2.5 text-center " + (primary ? "bg-white/20" : "bg-white/10")}>
+      <div className="text-[11px] text-white/75">{label}</div>
+      <div className={"font-extrabold leading-tight mt-0.5 " + (primary ? "text-[19px]" : "text-[16px]")}>{value}<span className="text-[12px] font-bold">원</span></div>
+    </div>
+  );
+}
 function Calc() {
+  const [mode, setMode] = useState("long"); // long=장기(매주 반복) / short=단기(며칠 근무)
   const [hourly, setHourly] = useState(String(MIN_WAGE));
   const [hpd, setHpd] = useState("8");     // 하루 근무시간
-  const [dpw, setDpw] = useState("5");     // 주 근무일수
+  const [dpw, setDpw] = useState("5");     // 주 근무일수(장기)
+  const [days, setDays] = useState("3");   // 총 근무일수(단기)
   const [night, setNight] = useState("0"); // 하루 야간(22~06시) 시간
   const [big5, setBig5] = useState(true);  // 5인 이상 사업장
+  const isShort = mode === "short";
 
   const num = (v) => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; };
-  const H = num(hourly), HPD = num(hpd), DPW = num(dpw), NIGHT = Math.min(num(night), HPD);
+  const H = num(hourly), HPD = num(hpd), NIGHT = Math.min(num(night), HPD);
+  const won = (n) => Math.round(n).toLocaleString();
+
+  // 하루 기준 — 두 모드 공통
+  const dayBase = H * HPD;                       // 하루 기본급
+  const dayNight = big5 ? NIGHT * H * 0.5 : 0;    // 하루 야간 가산
+  const dayPay = dayBase + dayNight;             // 일급
+
+  // 장기: 주 근무일수로 주휴·주급·월급
+  const DPW = num(dpw);
   const weeklyHours = HPD * DPW;
-  const basePay = H * weeklyHours;
   const holidayHours = weeklyHours >= 15 ? (Math.min(weeklyHours, 40) / 40) * 8 : 0;
   const holidayPay = holidayHours * H;
-  const nightPay = big5 ? NIGHT * DPW * H * 0.5 : 0;
-  const weekly = basePay + holidayPay + nightPay;
+  const weekly = dayPay * DPW + holidayPay;
   const monthly = weekly * 4.345;
-  const won = (n) => Math.round(n).toLocaleString();
+
+  // 단기: 총 근무일수로 총 급여
+  const TD = num(days);
+  const total = dayPay * TD;
 
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
-      <PageHead tag="알바 급여 도구" title="월급 계산기" sub="시급·근무시간만 넣으면 주휴수당까지 더한 월 예상 급여를 계산해요" />
+      <PageHead tag="알바 급여 도구" title="알바 급여 계산기" sub="일급·주급·월급까지 — 단기·장기 알바를 나눠서 계산해요" />
+
+      {/* 단기/장기 모드 전환 */}
+      <div className="bg-white px-5 pt-4 pb-1 mt-2">
+        <div className="grid grid-cols-2 gap-1.5 bg-gray-100 rounded-xl p-1">
+          {[["long", "장기", "매주 반복 근무"], ["short", "단기", "며칠만 일하는 알바"]].map(([m, l, d]) => (
+            <button key={m} onClick={() => setMode(m)}
+              className={"py-2.5 rounded-lg transition text-center " + (mode === m ? "bg-white shadow-card" : "")}>
+              <div className={"text-[14px] font-bold " + (mode === m ? "text-brand" : "text-gray-500")}>{l}</div>
+              <div className={"text-[11px] mt-0.5 " + (mode === m ? "text-gray-500" : "text-gray-400")}>{d}</div>
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="bg-white px-5 py-2 mt-2">
         <CalcRow label="시급" hint={`2026년 최저시급 ${MIN_WAGE.toLocaleString()}원`} value={hourly} set={setHourly} unit="원" />
         <CalcRow label="하루 근무시간" value={hpd} set={setHpd} unit="시간" />
-        <CalcRow label="주 근무일수" value={dpw} set={setDpw} unit="일" />
+        {isShort
+          ? <CalcRow label="총 근무일수" hint="이 알바로 일하는 전체 날짜 수" value={days} set={setDays} unit="일" />
+          : <CalcRow label="주 근무일수" value={dpw} set={setDpw} unit="일" />}
         <CalcRow label="하루 야간 근무" hint="밤 10시~오전 6시 근무 시간 (없으면 0)" value={night} set={setNight} unit="시간" />
         <button onClick={() => setBig5(!big5)} className="w-full flex items-center justify-between py-3.5">
           <span className="text-[15px] font-medium text-gray-700 text-left">5인 이상 사업장 <span className="text-gray-400 text-[13px]">(야간수당 적용)</span></span>
@@ -2591,32 +2628,64 @@ function Calc() {
         </button>
       </div>
 
+      {/* 결과 카드 */}
       <div className="px-5 mt-4">
         <div className="bg-brand rounded-2xl p-5 text-white shadow-soft">
-          <div className="text-[13px] text-white/80">월 예상 급여 (세전)</div>
-          <div className="text-[34px] font-extrabold leading-tight mt-1">{won(monthly)}<span className="text-xl font-bold">원</span></div>
-          <div className="text-[12px] text-white/75 mt-1">주급 {won(weekly)}원 · 월 4.345주 기준</div>
+          <div className="text-[13px] text-white/80">{isShort ? `총 예상 급여 (세전) · 근무 ${TD || 0}일` : "월 예상 급여 (세전)"}</div>
+          <div className="text-[34px] font-extrabold leading-tight mt-1">{won(isShort ? total : monthly)}<span className="text-xl font-bold">원</span></div>
+          <div className="text-[12px] text-white/75 mt-1">{isShort ? `일급 ${won(dayPay)}원 × ${TD || 0}일` : `주급 ${won(weekly)}원 · 월 4.345주 기준`}</div>
+          <div className={"grid gap-2 mt-4 " + (isShort ? "grid-cols-2" : "grid-cols-3")}>
+            {isShort ? (
+              <React.Fragment>
+                <CalcFig label="일급" value={won(dayPay)} primary />
+                <CalcFig label="총 급여" value={won(total)} primary />
+              </React.Fragment>
+            ) : (
+              <React.Fragment>
+                <CalcFig label="일급" value={won(dayPay)} />
+                <CalcFig label="주급" value={won(weekly)} />
+                <CalcFig label="월급" value={won(monthly)} primary />
+              </React.Fragment>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* 계산 내역 */}
       <div className="bg-white px-5 py-5 mt-4">
-        <h2 className="text-lg font-bold text-gray-900 mb-1">계산 내역 <span className="text-[13px] font-medium text-gray-400">(주 기준)</span></h2>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">계산 내역 <span className="text-[13px] font-medium text-gray-400">({isShort ? "하루 기준" : "주 기준"})</span></h2>
         <div className="divide-y divide-gray-100">
-          <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">기본급 <span className="text-gray-400 text-[13px]">({weeklyHours || 0}시간)</span></span><span className="font-semibold text-gray-900">{won(basePay)}원</span></div>
-          <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">주휴수당</span><span className="font-semibold text-gray-900">{won(holidayPay)}원</span></div>
-          {nightPay > 0 && <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">야간수당</span><span className="font-semibold text-gray-900">{won(nightPay)}원</span></div>}
-          <div className="flex justify-between py-2.5 text-[15px]"><span className="font-bold text-gray-900">주급 합계</span><span className="font-bold text-brand">{won(weekly)}원</span></div>
+          <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">기본급 <span className="text-gray-400 text-[13px]">({HPD || 0}시간)</span></span><span className="font-semibold text-gray-900">{won(dayBase)}원</span></div>
+          {dayNight > 0 && <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">야간수당 <span className="text-gray-400 text-[13px]">(하루)</span></span><span className="font-semibold text-gray-900">{won(dayNight)}원</span></div>}
+          <div className="flex justify-between py-2.5 text-[15px]"><span className="font-bold text-gray-900">일급 합계</span><span className="font-bold text-brand">{won(dayPay)}원</span></div>
+          {isShort ? (
+            <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">× {TD || 0}일</span><span className="font-semibold text-gray-900">{won(total)}원</span></div>
+          ) : (
+            <React.Fragment>
+              <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">× 주 {DPW || 0}일</span><span className="font-semibold text-gray-900">{won(dayPay * DPW)}원</span></div>
+              <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">주휴수당</span><span className="font-semibold text-gray-900">{won(holidayPay)}원</span></div>
+              <div className="flex justify-between py-2.5 text-[15px]"><span className="font-bold text-gray-900">주급 합계</span><span className="font-bold text-brand">{won(weekly)}원</span></div>
+            </React.Fragment>
+          )}
         </div>
         <div className="mt-3 bg-gray-50 rounded-xl p-3 text-[13px] text-gray-500 leading-relaxed">
-          3.3% 공제 시 월 약 <b className="text-gray-700">{won(monthly * 0.967)}원</b> · 4대보험 가입 시 실수령액은 조금 더 줄어요.
+          {isShort
+            ? <>3.3% 공제 시 총 약 <b className="text-gray-700">{won(total * 0.967)}원</b> — 단기·일용직은 보통 3.3% 원천징수로 정산돼요.</>
+            : <>3.3% 공제 시 월 약 <b className="text-gray-700">{won(monthly * 0.967)}원</b> · 4대보험 가입 시 실수령액은 조금 더 줄어요.</>}
         </div>
       </div>
 
       <div className="px-5 mt-4">
-        {weeklyHours > 0 && weeklyHours < 15 && (
-          <div className="bg-red-50 rounded-2xl p-4 text-[14px] text-red-600 leading-relaxed flex gap-2">
-            <span className="shrink-0">⚠️</span><span>주 {weeklyHours}시간이라 주 15시간 미만 — 주휴수당은 발생하지 않아요.</span>
+        {isShort ? (
+          <div className="bg-brandLt rounded-2xl p-4 text-[13px] text-gray-600 leading-relaxed flex gap-2">
+            <span className="shrink-0">💡</span><span>단기라도 한 주에 15시간 이상 일하고 그 주를 개근하면 <b className="text-gray-800">주휴수당</b>을 받을 수 있어요. 정기적으로 이어서 일한다면 <b className="text-brand">장기</b>로 계산해 보세요.</span>
           </div>
+        ) : (
+          weeklyHours > 0 && weeklyHours < 15 && (
+            <div className="bg-red-50 rounded-2xl p-4 text-[14px] text-red-600 leading-relaxed flex gap-2">
+              <span className="shrink-0">⚠️</span><span>주 {weeklyHours}시간이라 주 15시간 미만 — 주휴수당은 발생하지 않아요.</span>
+            </div>
+          )
         )}
         <p className="text-[11px] text-gray-400 mt-3 leading-relaxed">
           ※ 실제 지급액은 사업장 규모·계약 형태·공제에 따라 달라지는 <b>추정치</b>예요. 연장·야간·휴일 가산은 5인 이상 사업장 기준이며, 정확한 계산은 고용노동부(1350)에 문의하세요.
