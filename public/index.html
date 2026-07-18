@@ -1309,7 +1309,7 @@ function PageHead({ tag, title, sub }) {
 }
 
 const CAT_ICON = { food:"🍔", retail:"🛒", leisure:"🎮", service:"🛎️", office:"💼", labor:"📦", drive:"🛵", edu:"📚", event:"🎉" };
-function Home({ onGuide, onMbti, onNav, onCat, onCalc, onAccount, user, prev }) {
+function Home({ onGuide, onMbti, onNav, onCat, onCalc, onAccount, user, prev, paid }) {
   const featuredTypes = TYPES.slice(0, 4);
   const featuredBasics = BASICS.slice(0, 3);
   const featuredArticles = ARTICLES.slice(0, 4);
@@ -1339,7 +1339,9 @@ function Home({ onGuide, onMbti, onNav, onCat, onCalc, onAccount, user, prev }) 
             <div className="font-bold text-[17px] leading-tight">내 알바 MBTI는?</div>
             <div className="text-[12px] text-white/85 mt-0.5 truncate">
               {prev
-                ? <>지난 결과 · {PERSONAS[prev.code].emoji} {prev.code} {PERSONAS[prev.code].nick}</>
+                ? (paid
+                    ? <>지난 결과 · {PERSONAS[prev.code].emoji} {prev.code} {PERSONAS[prev.code].nick}</>
+                    : "🔒 지난 결과 보기 · 결제하면 전체 공개")
                 : "나에게 딱 맞는 알바 유형 찾기"}
             </div>
           </div>
@@ -1626,7 +1628,7 @@ function BottomNav({ tab, onTab }) {
 }
 
 /* 사이드 기능: 알바 MBTI 테스트 시작 화면(탭) */
-function MbtiIntro({ onStart, prev }) {
+function MbtiIntro({ onStart, prev, paid }) {
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
       <div className="bg-brand text-white px-7 pt-16 pb-9 text-center">
@@ -1664,7 +1666,9 @@ function MbtiIntro({ onStart, prev }) {
         </button>
         {prev && (
           <button onClick={() => onStart(true)} className="w-full mt-3 text-gray-500 text-sm font-semibold py-1">
-            지난 결과 보기 · {PERSONAS[prev.code].emoji} {prev.code} {PERSONAS[prev.code].nick}
+            {paid
+              ? <>지난 결과 보기 · {PERSONAS[prev.code].emoji} {prev.code} {PERSONAS[prev.code].nick}</>
+              : "🔒 지난 결과 보기 · 결제하면 전체 공개"}
           </button>
         )}
       </div>
@@ -1734,6 +1738,55 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
   };
   return (
     <div className="pb-16 bg-gray-50">
+      {!paid ? (
+      /* ──────── 미구매: 결과 전체를 잠근다. 결제해야 코드·성향·추천까지 열린다. ──────── */
+      <React.Fragment>
+        <div className="bg-white px-5 pt-14 pb-7 text-center border-b border-gray-100">
+          <div className="text-6xl pop">🎉</div>
+          <div className="mt-3 text-xl font-extrabold text-gray-900">결과가 완성됐어요!</div>
+          <div className="text-gray-400 text-sm mt-1.5">28문항 분석이 끝났어요.<br/>프리미엄으로 전체 결과를 확인하세요.</div>
+        </div>
+        <div className="px-5 py-5 bg-white mt-2">
+          <div className="border border-brand/20 bg-brandLt/40 rounded-2xl p-5 text-center">
+            <div className="text-3xl">🔒</div>
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              <h3 className="font-bold text-[16px] text-gray-900">알바 MBTI 프리미엄 리포트</h3>
+              <span className="text-[10px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">PREMIUM</span>
+            </div>
+            <p className="text-[13px] text-gray-500 leading-relaxed mt-1.5">
+              내 알바 유형부터 성향 분석·맞춤 추천까지<br />전체 결과를 한 번에 열어드려요.
+            </p>
+            <ul className="mt-4 space-y-2 text-left">
+              {[
+                ["🧬", "내 알바 MBTI 유형", "16유형 중 내 코드와 별명"],
+                ["🧠", "내 성향 자세히 보기", "4개 축을 하나씩 풀어서 해설"],
+                ["🧭", "이런 근무 환경이 잘 맞아요", "내게 맞는 환경 태그"],
+                ["🎯", "잘 맞는 알바 TOP 3", "매칭률과 '왜 잘 맞는지' 근거까지"],
+                ["⚠️", "이런 알바는 신중히", "결이 안 맞는 알바 미리 알기"],
+              ].map(([icon, title, sub], i) => (
+                <li key={i} className="flex gap-2.5 items-start bg-white rounded-xl p-3 border border-gray-100">
+                  <span className="text-lg leading-none mt-0.5">{icon}</span>
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-bold text-gray-900">{title}</div>
+                    <div className="text-[12px] text-gray-500 mt-0.5">{sub}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <button onClick={onBuy} className="mt-4 w-full bg-brand text-white font-bold py-3 rounded-xl press text-sm">
+              {price != null ? `${price.toLocaleString()}원으로 전체 결과 보기` : "프리미엄으로 전체 결과 보기"}
+            </button>
+            <p className="text-[11px] text-gray-400 mt-2">한 번 결제하면 계속 볼 수 있어요</p>
+          </div>
+        </div>
+        <div className="px-5 py-5 flex gap-2.5">
+          <button onClick={onRetry} className="flex-1 bg-gray-100 text-gray-600 font-bold py-3.5 rounded-xl press">🔄 다시 하기</button>
+          <button onClick={onHome} className="flex-1 bg-white border border-gray-200 text-gray-600 font-bold py-3.5 rounded-xl press">🏠 홈으로</button>
+        </div>
+      </React.Fragment>
+      ) : (
+      /* ──────── 결제자: 전체 결과 ──────── */
+      <React.Fragment>
       <div className="bg-white px-5 pt-14 pb-7 text-center border-b border-gray-100">
         <div className="text-6xl pop">{p.emoji}</div>
         <div className="mt-3 text-4xl font-extrabold tracking-widest text-brand">{code}</div>
@@ -1769,42 +1822,8 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
         </div>
       </div>
 
-      {/* ──────── 여기부터 프리미엄. 안 산 사람에겐 잠금 카드 하나로 대신한다. ──────── */}
-      {!paid ? (
-        <div className="px-5 py-5 bg-white mt-2">
-          <div className="border border-brand/20 bg-brandLt/40 rounded-2xl p-5 text-center">
-            <div className="text-3xl">🔒</div>
-            <div className="flex items-center justify-center gap-1.5 mt-2">
-              <h3 className="font-bold text-[16px] text-gray-900">프리미엄 상세 리포트</h3>
-              <span className="text-[10px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">PREMIUM</span>
-            </div>
-            <p className="text-[13px] text-gray-500 leading-relaxed mt-1.5">
-              {code} 성향을 바탕으로 나에게 맞는 알바를<br />43종 전체에서 가려내 드려요.
-            </p>
-            <ul className="mt-4 space-y-2 text-left">
-              {[
-                ["🧠", "내 성향 자세히 보기", "4개 축을 하나씩 풀어서 해설"],
-                ["🧭", "이런 근무 환경이 잘 맞아요", "내게 맞는 환경 태그"],
-                ["🎯", "잘 맞는 알바 TOP 3", "매칭률과 '왜 잘 맞는지' 근거까지"],
-                ["⚠️", "이런 알바는 신중히", "결이 안 맞는 알바 미리 알기"],
-              ].map(([icon, title, sub], i) => (
-                <li key={i} className="flex gap-2.5 items-start bg-white rounded-xl p-3 border border-gray-100">
-                  <span className="text-lg leading-none mt-0.5">{icon}</span>
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-bold text-gray-900">{title}</div>
-                    <div className="text-[12px] text-gray-500 mt-0.5">{sub}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <button onClick={onBuy} className="mt-4 w-full bg-brand text-white font-bold py-3 rounded-xl press text-sm">
-              {price != null ? `${price.toLocaleString()}원으로 전체 보기` : "프리미엄으로 전체 보기"}
-            </button>
-            <p className="text-[11px] text-gray-400 mt-2">한 번 결제하면 계속 볼 수 있어요</p>
-          </div>
-        </div>
-      ) : (
-        <React.Fragment>
+      {/* ──────── 프리미엄 상세 (결제자만 이 화면에 도달) ──────── */}
+      <React.Fragment>
           {/* 성향 상세 분석 */}
           <div className="px-5 py-5 bg-white mt-2">
             <h2 className="text-lg font-bold text-gray-900">🧠 내 성향 자세히 보기</h2>
@@ -1896,7 +1915,6 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
             </div>
           )}
         </React.Fragment>
-      )}
 
       <div className="px-5 py-5 bg-white mt-2">
         <h2 className="text-lg font-bold text-gray-900">📚 이건 꼭 알아두세요</h2>
@@ -1932,6 +1950,8 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
       <div className="px-5">
         <button onClick={onHome} className="w-full bg-white border border-gray-200 text-gray-600 font-bold py-3.5 rounded-xl press">🏠 홈으로</button>
       </div>
+      </React.Fragment>
+      )}
     </div>
   );
 }
@@ -2632,7 +2652,7 @@ function ProfileCard({ title, sub, children }) {
   );
 }
 
-function Profile({ user, onUser, onLogout, onBack, onAdmin, onRetake, onViewResult }) {
+function Profile({ user, onUser, onLogout, onBack, onAdmin, onRetake, onViewResult, paid }) {
   const [nick, setNick] = useState(user.nickname);
   const [avatar, setAvatar] = useState(user.avatar || AVATARS[0]);
   const [busy, setBusy] = useState(false);
@@ -2728,14 +2748,14 @@ function Profile({ user, onUser, onLogout, onBack, onAdmin, onRetake, onViewResu
         {p ? (
           <>
             <div className="flex items-center gap-3 bg-brandLt rounded-2xl px-4 py-3.5">
-              <div className="text-3xl">{p.emoji}</div>
+              <div className="text-3xl">{paid ? p.emoji : "🔒"}</div>
               <div className="min-w-0">
-                <div className="font-extrabold text-[16px] text-gray-900">{r.code} · {p.nick}</div>
-                <div className="text-[12px] text-gray-500 truncate">{p.tag}</div>
+                <div className="font-extrabold text-[16px] text-gray-900">{paid ? `${r.code} · ${p.nick}` : "결과 잠김"}</div>
+                <div className="text-[12px] text-gray-500 truncate">{paid ? p.tag : "결제하면 전체 결과가 열려요"}</div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-3">
-              <button onClick={onViewResult} className="bg-brand text-white font-bold py-3 rounded-xl press text-[14px]">결과 리포트 보기</button>
+              <button onClick={onViewResult} className="bg-brand text-white font-bold py-3 rounded-xl press text-[14px]">{paid ? "결과 리포트 보기" : "🔓 결과 잠금 해제"}</button>
               <button onClick={onRetake} className="bg-white border border-gray-200 text-gray-700 font-bold py-3 rounded-xl press text-[14px]">다시 테스트하기</button>
             </div>
             <button onClick={clearResult} className="w-full text-[12px] text-gray-400 mt-2 py-1.5">저장된 결과 지우기</button>
@@ -2954,7 +2974,7 @@ function AdminScreen({ onBack }) {
   );
 }
 
-function AccountScreen({ user, onAuthed, onUser, onLogout, onBack, onAdmin, onRetake, onViewResult }) {
+function AccountScreen({ user, onAuthed, onUser, onLogout, onBack, onAdmin, onRetake, onViewResult, paid }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -2971,7 +2991,7 @@ function AccountScreen({ user, onAuthed, onUser, onLogout, onBack, onAdmin, onRe
     if (d.ok && d.user) onAuthed(d.user);
     else setErr(d.error || "문제가 발생했어요.");
   };
-  if (user) return <Profile user={user} onUser={onUser} onLogout={onLogout} onBack={onBack} onAdmin={onAdmin} onRetake={onRetake} onViewResult={onViewResult} />;
+  if (user) return <Profile user={user} onUser={onUser} onLogout={onLogout} onBack={onBack} onAdmin={onAdmin} onRetake={onRetake} onViewResult={onViewResult} paid={paid} />;
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
       <TopBar onBack={onBack} label="홈" />
@@ -3473,18 +3493,18 @@ function App() {
       {overlay === "write" && <PostWrite initial={editPost} onBack={back}
         onDone={(p) => { setEditPost(null); setPostId(p.id); setFeedKey((k) => k + 1); go({ overlay: "post" }); }} />}
       {overlay === "detail" && guide && <Guide target={guide} onBack={back} backLabel={detailFrom === "result" ? "‹ 결과로" : "‹ 목록으로"} />}
-      {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={back} onAdmin={() => go({ overlay: "admin" })} onRetake={() => go({ overlay: "quiz" })} onViewResult={() => go({ overlay: "result" })} />}
+      {overlay === "account" && <AccountScreen user={user} onAuthed={onAuthed} onUser={setUser} onLogout={onLogout} onBack={back} onAdmin={() => go({ overlay: "admin" })} onRetake={() => go({ overlay: "quiz" })} onViewResult={() => go({ overlay: "result" })} paid={reportPaid} />}
       {overlay === "admin" && user.admin && <AdminScreen onBack={back} />}
 
       {/* 탭 콘텐츠 */}
-      {!overlay && tab === "home" && <Home onGuide={(t) => openGuide(t, "home")} onMbti={() => goTab("mbti")} onNav={goTab} onCat={goCat} onCalc={() => goTab("calc")} onAccount={() => go({ overlay: "account" })} user={user} prev={result} />}
+      {!overlay && tab === "home" && <Home onGuide={(t) => openGuide(t, "home")} onMbti={() => goTab("mbti")} onNav={goTab} onCat={goCat} onCalc={() => goTab("calc")} onAccount={() => go({ overlay: "account" })} user={user} prev={result} paid={reportPaid} />}
       {!overlay && tab === "community" && <CommunityTab refreshKey={feedKey}
         onOpen={(id) => { setPostId(id); go({ overlay: "post" }); }}
         onWrite={() => { setEditPost(null); go({ overlay: "write" }); }} />}
       {!overlay && tab === "types" && <TypesTab onGuide={(t) => openGuide(t, "types")} initial={typesCat} />}
       {!overlay && tab === "guideList" && <GuideTab onGuide={(t) => openGuide(t, "guideList")} />}
       {!overlay && tab === "calc" && <Calc />}
-      {!overlay && tab === "mbti" && <MbtiIntro onStart={start} prev={result} />}
+      {!overlay && tab === "mbti" && <MbtiIntro onStart={start} prev={result} paid={reportPaid} />}
       {!overlay && tab === "faq" && <FaqTab />}
 
       {!overlay && <BottomNav tab={tab} onTab={goTab} />}
