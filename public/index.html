@@ -2573,6 +2573,7 @@ function Calc() {
   const [days, setDays] = useState("3");   // 총 근무일수(단기)
   const [night, setNight] = useState("0"); // 하루 야간(22~06시) 시간
   const [big5, setBig5] = useState(true);  // 5인 이상 사업장
+  const [shortHol, setShortHol] = useState(false); // 단기 주휴수당 반영
   const isShort = mode === "short";
 
   const num = (v) => { const n = parseFloat(v); return isFinite(n) && n > 0 ? n : 0; };
@@ -2592,9 +2593,13 @@ function Calc() {
   const weekly = dayPay * DPW + holidayPay;
   const monthly = weekly * 4.345;
 
-  // 단기: 총 근무일수로 총 급여
+  // 단기: 총 근무일수로 총 급여 (+옵션: 주휴수당 — 주 근무일수로 완주한 주마다 발생)
   const TD = num(days);
-  const total = dayPay * TD;
+  const shortWeekHours = HPD * DPW;                 // 단기 주휴 판정용(주 근무일수 재사용)
+  const shortEligible = shortHol && shortWeekHours >= 15 && DPW > 0;
+  const shortFullWeeks = shortEligible ? Math.floor(TD / DPW) : 0;
+  const shortHolidayPay = shortEligible ? (Math.min(shortWeekHours, 40) / 40) * 8 * H * shortFullWeeks : 0;
+  const total = dayPay * TD + shortHolidayPay;
 
   return (
     <div className="pb-24 bg-gray-50 min-h-screen">
@@ -2626,6 +2631,17 @@ function Calc() {
             <span className={"block w-5 h-5 bg-white rounded-full shadow transition-transform " + (big5 ? "translate-x-5" : "")} />
           </span>
         </button>
+        {isShort && (
+          <React.Fragment>
+            <button onClick={() => setShortHol(!shortHol)} className="w-full flex items-center justify-between py-3.5 border-t border-gray-100">
+              <span className="text-[15px] font-medium text-gray-700 text-left">주휴수당 반영 <span className="text-gray-400 text-[13px]">(주 15시간 이상 개근 시)</span></span>
+              <span className={"w-11 h-6 rounded-full p-0.5 transition shrink-0 " + (shortHol ? "bg-brand" : "bg-gray-200")}>
+                <span className={"block w-5 h-5 bg-white rounded-full shadow transition-transform " + (shortHol ? "translate-x-5" : "")} />
+              </span>
+            </button>
+            {shortHol && <CalcRow label="주 근무일수" hint="한 주에 며칠 나가는지 — 이 주기로 주휴를 계산해요" value={dpw} set={setDpw} unit="일" />}
+          </React.Fragment>
+        )}
       </div>
 
       {/* 결과 카드 */}
@@ -2633,11 +2649,12 @@ function Calc() {
         <div className="bg-brand rounded-2xl p-5 text-white shadow-soft">
           <div className="text-[13px] text-white/80">{isShort ? `총 예상 급여 (세전) · 근무 ${TD || 0}일` : "월 예상 급여 (세전)"}</div>
           <div className="text-[34px] font-extrabold leading-tight mt-1">{won(isShort ? total : monthly)}<span className="text-xl font-bold">원</span></div>
-          <div className="text-[12px] text-white/75 mt-1">{isShort ? `일급 ${won(dayPay)}원 × ${TD || 0}일` : `주급 ${won(weekly)}원 · 월 4.345주 기준`}</div>
-          <div className={"grid gap-2 mt-4 " + (isShort ? "grid-cols-2" : "grid-cols-3")}>
+          <div className="text-[12px] text-white/75 mt-1">{isShort ? `일급 ${won(dayPay)}원 × ${TD || 0}일${shortHolidayPay > 0 ? ` + 주휴 ${won(shortHolidayPay)}원` : ""}` : `주급 ${won(weekly)}원 · 월 4.345주 기준`}</div>
+          <div className={"grid gap-2 mt-4 " + (isShort ? (shortHolidayPay > 0 ? "grid-cols-3" : "grid-cols-2") : "grid-cols-3")}>
             {isShort ? (
               <React.Fragment>
-                <CalcFig label="일급" value={won(dayPay)} primary />
+                <CalcFig label="일급" value={won(dayPay)} primary={shortHolidayPay <= 0} />
+                {shortHolidayPay > 0 && <CalcFig label="주휴 합계" value={won(shortHolidayPay)} />}
                 <CalcFig label="총 급여" value={won(total)} primary />
               </React.Fragment>
             ) : (
@@ -2659,7 +2676,11 @@ function Calc() {
           {dayNight > 0 && <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">야간수당 <span className="text-gray-400 text-[13px]">(하루)</span></span><span className="font-semibold text-gray-900">{won(dayNight)}원</span></div>}
           <div className="flex justify-between py-2.5 text-[15px]"><span className="font-bold text-gray-900">일급 합계</span><span className="font-bold text-brand">{won(dayPay)}원</span></div>
           {isShort ? (
-            <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">× {TD || 0}일</span><span className="font-semibold text-gray-900">{won(total)}원</span></div>
+            <React.Fragment>
+              <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">× {TD || 0}일</span><span className="font-semibold text-gray-900">{won(dayPay * TD)}원</span></div>
+              {shortHol && shortHolidayPay > 0 && <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">주휴수당 <span className="text-gray-400 text-[13px]">(주 {DPW || 0}일 개근 × {shortFullWeeks}주)</span></span><span className="font-semibold text-gray-900">{won(shortHolidayPay)}원</span></div>}
+              <div className="flex justify-between py-2.5 text-[15px]"><span className="font-bold text-gray-900">총 급여 합계</span><span className="font-bold text-brand">{won(total)}원</span></div>
+            </React.Fragment>
           ) : (
             <React.Fragment>
               <div className="flex justify-between py-2.5 text-[15px]"><span className="text-gray-600">× 주 {DPW || 0}일</span><span className="font-semibold text-gray-900">{won(dayPay * DPW)}원</span></div>
@@ -2677,9 +2698,19 @@ function Calc() {
 
       <div className="px-5 mt-4">
         {isShort ? (
-          <div className="bg-brandLt rounded-2xl p-4 text-[13px] text-gray-600 leading-relaxed flex gap-2">
-            <span className="shrink-0">💡</span><span>단기라도 한 주에 15시간 이상 일하고 그 주를 개근하면 <b className="text-gray-800">주휴수당</b>을 받을 수 있어요. 정기적으로 이어서 일한다면 <b className="text-brand">장기</b>로 계산해 보세요.</span>
-          </div>
+          shortHol && shortWeekHours > 0 && shortWeekHours < 15 ? (
+            <div className="bg-red-50 rounded-2xl p-4 text-[14px] text-red-600 leading-relaxed flex gap-2">
+              <span className="shrink-0">⚠️</span><span>주 {shortWeekHours}시간이라 주 15시간 미만 — 주휴수당은 발생하지 않아요.</span>
+            </div>
+          ) : shortHol && shortEligible && shortFullWeeks === 0 && TD > 0 ? (
+            <div className="bg-brandLt rounded-2xl p-4 text-[13px] text-gray-600 leading-relaxed flex gap-2">
+              <span className="shrink-0">💡</span><span>아직 한 주(주 {DPW || 0}일)를 채우지 못해 주휴가 없어요. 한 주를 개근할 때마다 하루치가 더 붙어요.</span>
+            </div>
+          ) : (
+            <div className="bg-brandLt rounded-2xl p-4 text-[13px] text-gray-600 leading-relaxed flex gap-2">
+              <span className="shrink-0">💡</span><span>단기라도 한 주에 15시간 이상 일하고 그 주를 개근하면 <b className="text-gray-800">주휴수당</b>을 받을 수 있어요. 위 <b className="text-brand">주휴수당 반영</b>을 켜면 계산에 더해드려요.</span>
+            </div>
+          )
         ) : (
           weeklyHours > 0 && weeklyHours < 15 && (
             <div className="bg-red-50 rounded-2xl p-4 text-[14px] text-red-600 leading-relaxed flex gap-2">
