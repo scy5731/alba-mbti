@@ -15,12 +15,18 @@ jobs:
     steps:
       - name: Ping /api/health
         run: |
-          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 90 https://albamates.com/api/health)
-          echo "status: $code"
+          # 응답 본문까지 찍는다. 앱이 살아 있는데 DB 만 죽었으면 503 + dbError 가 찍혀서
+          # 원인이 바로 보인다. 아예 무응답이면 curl 이 timeout 으로 죽는다(그것도 신호다).
+          ping() {
+            code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 90 https://albamates.com/api/health) || code=000
+            echo "status: $code"
+            echo "body: $(head -c 500 /tmp/body 2>/dev/null)"
+          }
+          ping
           # 콜드스타트로 깨어나는 중이면 5xx 가 잠깐 뜰 수 있다 — 한 번 더 확인한다.
           if [ "$code" != "200" ]; then
             sleep 45
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 90 https://albamates.com/api/health)
-            echo "retry status: $code"
+            echo "--- retry ---"
+            ping
           fi
           [ "$code" = "200" ]

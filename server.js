@@ -512,10 +512,20 @@ function makeFileStore(dbPath) {
 
 const store = DATABASE_URL ? makePgStore(DATABASE_URL) : makeFileStore(DB_PATH);
 
+/* 저장소 상태 — 앱은 저장소가 죽어도 뜬다(아래 기동부 참고).
+   2026-08 에 Render 무료 Postgres 가 30일 만료로 사라졌을 때, 기동 중 process.exit(1) 로
+   죽는 바람에 포트가 아예 안 열려서 사이트가 "무응답"으로만 보였다. 원인이 밖에서
+   전혀 안 보였던 게 진짜 문제였다. 그래서 상태를 들고 있다가 /api/health 로 노출한다. */
+const dbState = { ready: false, error: null };
+
 const app = express();
 app.set("trust proxy", 1);      // Render 등 프록시 뒤에서 req.secure 정상 동작
 app.use(express.json());
-const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch((e) => { console.error(e); res.status(500).json({ ok: false, error: "서버 오류가 발생했어요." }); });
+// 저장소가 아직 안 붙었으면 500(원인 불명) 대신 503 으로 이유를 분명히 말해준다.
+const ah = (fn) => (req, res, next) => {
+  if (!dbState.ready) return res.status(503).json({ ok: false, error: "데이터베이스에 연결할 수 없어요. 잠시 뒤 다시 시도해 주세요." });
+  return Promise.resolve(fn(req, res, next)).catch((e) => { console.error(e); res.status(500).json({ ok: false, error: "서버 오류가 발생했어요." }); });
+};
 const isAdmin = (u) => !!(u && ADMIN_EMAIL && String(u.email).toLowerCase() === ADMIN_EMAIL);
 const publicUser = (u) => ({
   id: u.id, email: u.email, nickname: u.nickname,
@@ -1057,14 +1067,41 @@ app.post("/api/admin/payments/:orderId/cancel", requireAdmin, ah(async (req, res
 }));
 
 // 헬스체크 + 결제 상태. Render 서비스에 healthCheckPath=/api/config 가 남아 있어도 통과하도록 경로를 유지한다.
-app.get(["/api/health", "/api/config"], (req, res) => res.json({ ok: true, free: !PAY_ON, commit: COMMIT }));
+// /api/config 는 프론트가 기동 때 읽고, Render 헬스체크가 이 경로로 남아 있을 수도 있다.
+// 여기서 503 을 주면 Render 가 배포 자체를 실패로 보고 트래픽을 아예 안 흘린다 — 항상 200.
+app.get("/api/config", (req, res) => res.json({ ok: true, free: !PAY_ON, commit: COMMIT, db: dbState.ready ? "up" : "down" }));
+
+// /api/health 는 감시용이라 저장소가 죽어 있으면 503 + 이유를 실어 보낸다. keepalive 가
+// 그대로 실패하되, 로그에 "무응답 타임아웃"이 아니라 원인이 남는다 — 이번 다운의 교훈.
+app.get("/api/health", (req, res) => {
+  const body = { ok: dbState.ready, free: !PAY_ON, commit: COMMIT, store: store.kind, db: dbState.ready ? "up" : "down" };
+  if (!dbState.ready) body.dbError = dbState.error;
+  res.status(dbState.ready ? 200 : 503).json(body);
+});
 
 app.use(express.static(path.join(__dirname, "public")));
 
-store.init()
-  .then(async () => {
+/* 기동 — 포트부터 연다.
+   예전엔 store.init() 이 끝나야 listen 했고, 실패하면 process.exit(1) 이었다. 그래서 DB 가
+   사라진 날 사이트가 통째로 무응답이 됐고(라우터가 붙을 인스턴스 자체가 없음) 밖에서는
+   원인이 안 보였다. 이제는 정적 페이지와 /api/health 는 항상 뜨고, 저장소는 뒤에서 계속
+   재시도한다. 저장소가 필요한 API 는 ah() 가 503 으로 돌려보낸다. */
+const admin = ADMIN_EMAIL ? `관리자 ${ADMIN_EMAIL}` : "관리자 OFF(ADMIN_EMAIL 미설정)";
+app.listen(PORT, () => console.log(`알바 메이트 실행: http://localhost:${PORT} · 저장소 ${store.kind} · ${admin}`));
+
+// 저장소 연결 — 성공할 때까지 백오프 재시도(최대 5분 간격). DB 가 잠깐 죽었다 살아나면
+// 재배포 없이 스스로 붙는다.
+(async function connectStore(delay = 5000) {
+  try {
+    await store.init();
+    dbState.ready = true;
+    dbState.error = null;
     const n = await store.count().catch(() => "?");
-    const admin = ADMIN_EMAIL ? `관리자 ${ADMIN_EMAIL}` : "관리자 OFF(ADMIN_EMAIL 미설정)";
-    app.listen(PORT, () => console.log(`알바 메이트 실행: http://localhost:${PORT} · 저장소 ${store.kind} · 계정 ${n}명 · ${admin}`));
-  })
-  .catch((e) => { console.error("저장소 초기화 실패:", e); process.exit(1); });
+    console.log(`저장소 연결됨: ${store.kind} · 계정 ${n}명`);
+  } catch (e) {
+    dbState.ready = false;
+    dbState.error = String((e && e.message) || e);
+    console.error(`저장소 초기화 실패(${Math.round(delay / 1000)}초 뒤 재시도):`, dbState.error);
+    setTimeout(() => connectStore(Math.min(delay * 2, 300000)), delay).unref?.();
+  }
+})();

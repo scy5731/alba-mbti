@@ -1,12 +1,10 @@
-# Render Blueprint — Dockerfile 웹서비스 + 무료 PostgreSQL(영구 계정 저장).
-# 대시보드 New → Blueprint 로 이 레포를 연결하면 아래 설정대로 DB와 서비스가 생성됩니다.
-databases:
-  - name: alba-db
-    plan: free
-    region: singapore
-    databaseName: alba
-    user: alba
-
+# Render Blueprint — Dockerfile 웹서비스. DB 는 Render 밖(Neon)에 둔다.
+# 대시보드 New → Blueprint 로 이 레포를 연결하면 아래 설정대로 서비스가 생성됩니다.
+#
+# ⚠ 2026-08-11: 여기 있던 무료 Postgres(alba-db)가 생성 30일 만에 만료돼 사라졌고,
+#   앱이 기동을 못 해 사이트가 통째로 내려갔다. Render 무료 DB 는 30일마다 죽으므로
+#   운영에 못 쓴다. 그래서 만료가 없는 외부 Postgres(Neon)로 옮기고, 연결 문자열은
+#   대시보드에서 직접 넣는다(sync:false).
 services:
   - type: web
     name: alba-mbti
@@ -21,11 +19,11 @@ services:
       - albamates.com
       - www.albamates.com
     envVars:
-      # 계정 저장용 Postgres 연결 문자열 — Blueprint가 위 alba-db에서 자동 주입.
+      # 계정 저장용 Postgres 연결 문자열 — Neon 대시보드에서 복사해 직접 입력.
+      # 형식: postgresql://USER:PASS@ep-xxxx.ap-southeast-1.aws.neon.tech/alba?sslmode=require
+      # 비우면 앱은 파일 저장소로 뜨는데, Render 디스크는 재배포마다 날아가니 운영에선 반드시 채울 것.
       - key: DATABASE_URL
-        fromDatabase:
-          name: alba-db
-          property: connectionString
+        sync: false
       # 세션 서명 키 — Render가 한 번 생성해 배포 간 유지(재배포해도 로그인 유지).
       - key: SESSION_SECRET
         generateValue: true
