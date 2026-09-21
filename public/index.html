@@ -539,6 +539,107 @@ const TYPE_BRANDS = {
   babysit:["맘시터","째깍악어","가정 아이돌봄"],
 };
 
+/* ============================================================
+   직종별 평균 시급 (TYPE_WAGE)
+   ------------------------------------------------------------
+   ※ 한국에는 '알바 직종별 평균시급' 공식 통계가 없어요.
+      그래서 아래 세 가지 근거를 조합해 '범위'로 추정합니다.
+
+   ① 하한선(확정) — 2026년 법정 최저임금 10,320원
+      고용노동부 2025-08-05 고시 (2025년 대비 +290원, 2.9%)
+      https://www.moel.go.kr/news/enews/report/enewsView.do?news_seq=18144
+
+   ② 전체 수준(실측) — 알바천국 2026 상반기 조사
+      상반기 1개월 이상 알바 경험자 933명 / 실제 받은 평균시급 11,233원
+      = 최저임금의 1.088배. (수도권 11,322 · 충청 11,300 · 경상 11,147 · 전라 10,721)
+
+   ③ 직종 간 격차 — 알바몬 2023 상반기 등록공고 214만건 직종별 평균시급
+      전체평균 10,929 / 편의점 9,787 · 뷰티헬스스토어 9,837 · 스터디룸·독서실 9,922
+      (하위권) / 교육·강사 16,450 · 서비스 13,470 · 운전·배달 12,946 ·
+      고객상담 12,055 (상위권) — 당시 최저임금 9,620원으로 나눈 '최저임금 배수'만
+      가져와 2026년 최저임금에 다시 곱했어요.
+
+   ④ 야간(22~06시) 1.5배 가산은 근로기준법 제56조(5인 이상 사업장).
+
+   → lo/hi 는 '최저임금 배수'예요. 금액이 아니라 배수로 저장해 두면
+     최저임금이 오를 때 WAGE_BASE 한 줄만 고쳐도 43종이 전부 따라 올라가요.
+   ============================================================ */
+const WAGE_BASE = 10320; // 2026년 법정 최저임금 (고용노동부 고시)
+const WAGE_SOURCE = "※ 2026년 최저임금(10,320원, 고용노동부)을 기준으로, 알바천국 2026 상반기 평균시급 조사와 알바몬 직종별 공고 평균시급의 직종 간 격차를 반영해 추정한 범위예요. 실제 시급은 지역·시간대·매장마다 달라요.";
+
+const TYPE_WAGE = {
+  /* 음식·외식 */
+  cafe:       { lo:1.00, hi:1.12 },
+  bakery:     { lo:1.00, hi:1.12, note:"오픈조(새벽 출근)는 수당을 얹어주는 곳이 있어요." },
+  hall:       { lo:1.00, hi:1.15, note:"식사 피크타임만 뛰는 '피크 알바'는 시급을 더 쳐주기도 해요." },
+  kitchen:    { lo:1.02, hi:1.22, note:"칼질·조리 경험이 쌓이면 올려 받기 쉬운 편이에요." },
+  fastfood:   { lo:1.00, hi:1.10, note:"대형 프랜차이즈는 대부분 최저임금에 맞춰 통일돼 있어요." },
+  chicken:    { lo:1.00, hi:1.18 },
+  dessert:    { lo:1.00, hi:1.10 },
+  bar:        { lo:1.15, hi:1.45, note:"밤 10시~오전 6시 근무는 5인 이상 사업장이면 1.5배 야간수당 대상이에요." },
+  wedding:    { lo:1.05, hi:1.28, note:"주말 단기라 시급보다 일당(8~12만원)으로 공고가 올라와요." },
+  /* 매장·판매 */
+  cvs:        { lo:1.00, hi:1.12, note:"2023년 알바몬 조사에서 시급이 가장 낮은 직종 1위였어요. 대신 야간은 1.5배 가산 대상이라 15,000원 안팎까지 올라가요." },
+  mart:       { lo:1.00, hi:1.12 },
+  beauty:     { lo:1.00, hi:1.12, note:"기본 시급은 낮은 편이지만 판매 인센티브가 따로 붙는 매장이 있어요." },
+  bookstore:  { lo:1.00, hi:1.10 },
+  flower:     { lo:1.00, hi:1.15 },
+  kiosk:      { lo:1.00, hi:1.12, note:"여러 점포를 도는 순회형은 시급 대신 회차당으로 계산하는 곳도 있어요." },
+  promoter:   { lo:1.10, hi:1.42, note:"행사 단위 일당(9~13만원) 형태가 일반적이에요." },
+  /* 여가·엔터 */
+  pcbang:     { lo:1.00, hi:1.18, note:"야간 타임이 가장 높고, 주간은 대체로 최저임금 수준이에요." },
+  study:      { lo:1.00, hi:1.06, note:"2023년 알바몬 조사에서 시급 하위 5위권이었어요. 몸이 편한 대신 시급은 최저임금 언저리예요." },
+  movie:      { lo:1.00, hi:1.12 },
+  karaoke:    { lo:1.05, hi:1.30, note:"심야 마감 타임은 야간수당이 붙어요." },
+  amusement:  { lo:1.00, hi:1.12 },
+  petcafe:    { lo:1.00, hi:1.12 },
+  /* 서비스 */
+  gym:        { lo:1.00, hi:1.15, note:"회원권·PT 등록을 연결하면 인센티브가 붙는 곳도 있어요." },
+  hotel:      { lo:1.05, hi:1.28, note:"야간 프론트(나이트 오디터)는 가산수당이 붙어 더 높아요." },
+  gas:        { lo:1.00, hi:1.18, note:"야간 타임은 1.5배 가산 대상이에요." },
+  clean:      { lo:1.00, hi:1.18 },
+  carwash:    { lo:1.00, hi:1.22 },
+  valet:      { lo:1.05, hi:1.32, note:"수동 운전 가능·무사고 경력이면 더 쳐줘요." },
+  lifeguard:  { lo:1.15, hi:1.48, note:"인명구조 자격증이 필수라 무자격 알바보다 시급이 높아요." },
+  golf:       { lo:1.35, hi:1.90, note:"시급이 아니라 라운드당 캐디피(18홀 14~16만원) 구조예요. 아래 금액은 시간당으로 환산한 참고값이에요." },
+  /* 사무·재택 */
+  cs:         { lo:1.10, hi:1.38, note:"2023년 조사에서 '고객상담·리서치·영업' 분야 평균이 최저임금의 1.25배였어요." },
+  datawork:   { lo:0.95, hi:1.18, note:"건당·작업량당 정산이 많아 실제 시급은 작업 속도에 크게 좌우돼요." },
+  /* 생산·물류·노무 */
+  logi:       { lo:1.05, hi:1.52, note:"야간 라인이 많아 가산수당 포함 일당 11~15만원 공고가 흔해요. 시급 자체는 최저임금 언저리인 경우도 많아요." },
+  sorting:    { lo:1.05, hi:1.40, note:"새벽 타임은 야간수당이 붙어요." },
+  factory:    { lo:1.00, hi:1.22, note:"2023년 조사에서 금형·사출, 반도체 생산은 최저임금의 1.02~1.03배로 낮은 축이었어요." },
+  moving:     { lo:1.30, hi:1.82, note:"일당제(12~18만원)가 기본이고 계단·짐 양에 따라 더 붙어요." },
+  courier:    { lo:1.15, hi:1.52, note:"건당 수수료 구조가 섞여 있어 물량에 따라 달라져요." },
+  /* 운전·배달 */
+  delivery:   { lo:1.40, hi:1.95, note:"시급이 아니라 건당 수수료(3,000~4,500원) 구조예요. 오토바이·보험·유류비를 빼기 전 금액이라 실수령은 더 낮아요." },
+  /* 교육 */
+  tutor:      { lo:1.55, hi:2.20, note:"2023년 조사에서 '교육·강사' 분야 평균이 최저임금의 1.71배로 전 분야 1위였어요." },
+  afterschool:{ lo:1.48, hi:1.95, note:"2023년 조사에서 '보조교사' 평균이 최저임금의 1.67배였어요." },
+  babysit:    { lo:1.15, hi:1.58, note:"아이 수·연령·등하원 동행 여부에 따라 차이가 커요." },
+  /* 행사·단기 */
+  event:      { lo:1.12, hi:1.50, note:"보통 시급보다 일당(8~13만원)으로 공고가 올라와요." },
+  flyer:      { lo:1.00, hi:1.22, note:"배포 수량 기준으로 건당 정산하는 곳도 있어요." },
+};
+
+const wageRound = (n) => Math.round(n / 100) * 100;
+const wageWon = (n) => n.toLocaleString() + "원";
+function typeWage(id) {
+  const w = TYPE_WAGE[id];
+  if (!w) return null;
+  const lo = w.lo === 1 ? WAGE_BASE : wageRound(WAGE_BASE * w.lo);
+  const hi = wageRound(WAGE_BASE * w.hi);
+  const mid = Math.round((lo + hi) / 2);
+  return { lo, hi, mid, note: w.note, ratio: mid / WAGE_BASE,
+           /* 최저임금(0%) ~ 최저임금 2배(100%) 구간에서의 위치 */
+           pct: Math.max(2, Math.min(100, Math.round(((mid - WAGE_BASE) / WAGE_BASE) * 100))) };
+}
+/* 목록·카드용 짧은 표기 */
+function wageShort(id) {
+  const w = typeWage(id);
+  return w ? w.lo.toLocaleString() + "~" + wageWon(w.hi) : null;
+}
+
 /* 기본 가이드 (알바 공통 상식) — intro + 소제목별 섹션 + 주의사항 */
 const BASICS = [
   { id:"contract", emoji:"📝", title:"근로계약서, 꼭 받으세요", sub:"하루 알바라도 계약서는 법적 권리예요",
@@ -1381,6 +1482,7 @@ function Home({ onGuide, onMbti, onNav, onCat, onCalc, onAccount, user, prev, pa
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-[15px] text-gray-900">{t.name}</span>
                   <span className="text-[10px] font-semibold text-brand bg-brandLt px-1.5 py-0.5 rounded">{CAT_LABEL[TYPE_CAT[t.id]]}</span>
+                  {wageShort(t.id) && <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">💰 {wageShort(t.id)}</span>}
                 </div>
                 <div className="text-[13px] text-gray-500 mt-0.5 truncate">{t.oneLine}</div>
               </div>
@@ -1465,6 +1567,7 @@ function TypesTab({ onGuide, initial }) {
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-[15px] text-gray-900">{t.name}</span>
                 <span className="text-[10px] font-semibold text-brand bg-brandLt px-1.5 py-0.5 rounded shrink-0">{CAT_LABEL[TYPE_CAT[t.id]]}</span>
+                {wageShort(t.id) && <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">💰 {wageShort(t.id)}</span>}
               </div>
               <div className="text-[13px] text-gray-500 mt-0.5 line-clamp-1">{t.oneLine}</div>
               {TYPE_BRANDS[t.id] && <div className="text-[12px] text-gray-400 mt-1 line-clamp-1">🏢 {TYPE_BRANDS[t.id].slice(0, 3).join(" · ")}</div>}
@@ -1871,6 +1974,7 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">{idx === 0 ? "BEST" : `${idx + 1}순위`}</span>
                           <span className="text-[11px] font-semibold text-brand">매칭 {r.pct}%</span>
+                          {wageShort(r.t.id) && <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">💰 {wageShort(r.t.id)}</span>}
                         </div>
                         <h3 className="font-bold text-[17px] text-gray-900 leading-tight mt-0.5">{r.t.name}</h3>
                       </div>
@@ -2479,6 +2583,23 @@ function Guide({ target, onBack, backLabel = "‹ 결과로" }) {
           <p className="text-gray-400 text-xs mt-1">{t.tag}</p>
           <p className="text-gray-700 text-[15px] mt-3 leading-relaxed">{t.oneLine}</p>
         </div>
+        {typeWage(t.id) && (() => { const w = typeWage(t.id); return (
+          <div className="bg-white px-5 py-5 mt-2">
+            <h2 className="text-lg font-bold text-gray-900 mb-3">💰 평균 시급</h2>
+            <div className="bg-amber-50 rounded-2xl p-4">
+              <div className="text-[22px] font-bold text-amber-700 leading-tight">{wageWon(w.lo)} ~ {wageWon(w.hi)}</div>
+              <div className="text-[12px] text-gray-500 mt-1">2026년 최저임금({wageWon(WAGE_BASE)}) 대비 약 <b className="text-amber-700">{w.ratio.toFixed(2)}배</b></div>
+              <div className="mt-3 h-2 rounded-full bg-white overflow-hidden">
+                <div className="h-full bg-amber-400 rounded-full" style={{ width: w.pct + "%" }} />
+              </div>
+              <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                <span>최저임금 {wageWon(WAGE_BASE)}</span><span>{wageWon(WAGE_BASE * 2)}</span>
+              </div>
+            </div>
+            {w.note && <p className="text-[13px] text-gray-700 mt-3 bg-gray-50 rounded-xl p-3.5 leading-relaxed">💡 {w.note}</p>}
+            <p className="text-[11px] text-gray-400 mt-2.5 leading-relaxed">{WAGE_SOURCE}</p>
+          </div>
+        ); })()}
         {TYPE_BRANDS[t.id] && (
           <div className="bg-white px-5 py-5 mt-2">
             <h2 className="text-lg font-bold text-gray-900 mb-3">🏢 이런 곳에서 뽑아요</h2>
