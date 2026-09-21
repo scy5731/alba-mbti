@@ -44,3 +44,10 @@ services:
       # 결제창이 돌아올 절대 주소(returnUrl 기준). 커스텀 도메인으로 고정한다.
       - key: PUBLIC_BASE_URL
         value: https://albamates.com
+      # ── 카카오 로컬 API (우리 동네 일할 곳 찾기) ──
+      # REST 키는 서버 전용(장소 검색), JS 키는 지도 렌더용. 둘 다 대시보드에서 입력.
+      # 비어 있으면 "우리 동네" 섹션이 통째로 숨겨진 채 앱이 정상 동작한다.
+      - key: KAKAO_REST_KEY
+        sync: false
+      - key: KAKAO_JS_KEY
+        sync: false

@@ -2573,6 +2573,255 @@ function TopBar({ onBack, label }) {
     </div>
   );
 }
+/* ============================================================
+   우리 동네에서 일할 곳 — 카카오 로컬 API
+   "편의점 알바"를 보고 있으면 내 위치 반경의 편의점을 뽑아 지도·목록으로 보여준다.
+   솔직하게: 이건 "근처에 있는 매장"이지 "지금 알바를 뽑는 매장"이 아니다.
+   공고 데이터는 공개 API가 없어서, 대신 전화번호와 공고 검색 링크를 같이 준다.
+   ============================================================ */
+let placesCfgPromise = null;
+function loadPlacesConfig() {
+  if (!placesCfgPromise) placesCfgPromise = api("GET", "/api/places/config");
+  return placesCfgPromise;
+}
+/* 지도 SDK는 실제로 지도를 볼 때 처음 받는다(첫 화면 로딩을 늦추지 않는다). */
+let kakaoSdkPromise = null;
+function loadKakaoSdk(jsKey) {
+  if (kakaoSdkPromise) return kakaoSdkPromise;
+  kakaoSdkPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    // autoload=false + kakao.maps.load() — 이걸 빼면 onload 시점에 kakao.maps 가 아직 undefined 다.
+    s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${jsKey}&autoload=false`;
+    s.onload = () => window.kakao.maps.load(() => resolve(window.kakao));
+    s.onerror = () => reject(new Error("지도를 불러오지 못했어요."));
+    document.head.appendChild(s);
+  });
+  return kakaoSdkPromise;
+}
+const placeDist = (m) => (m >= 1000 ? (m / 1000).toFixed(1) + "km" : m + "m");
+/* 공고 검색 딥링크 — 사이트 URL 형식이 바뀌면 여기만 고치면 돼요. */
+const jobSearchLinks = (regionText, typeName) => {
+  const q = encodeURIComponent([regionText, typeName].filter(Boolean).join(" "));
+  return [
+    { label: "알바몬", url: `https://www.albamon.com/jobs/search?keyword=${q}` },
+    { label: "알바천국", url: `https://www.alba.co.kr/search/Search.asp?hidSearchWord=${q}` },
+  ];
+};
+
+function PlacesMap({ center, places, focus, sdk }) {
+  const box = useRef(null);
+  const mapRef = useRef(null);
+  const marksRef = useRef([]);
+
+  useEffect(() => {
+    if (!sdk || !box.current) return;
+    const kakao = sdk;
+    if (!mapRef.current) {
+      mapRef.current = new kakao.maps.Map(box.current, {
+        center: new kakao.maps.LatLng(center.lat, center.lng), level: 5,
+      });
+      new kakao.maps.CustomOverlay({   // 내 위치 — 파란 점
+        map: mapRef.current, zIndex: 1,
+        position: new kakao.maps.LatLng(center.lat, center.lng),
+        content: '<div style="width:14px;height:14px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 3px rgba(37,99,235,.3)"></div>',
+      });
+    }
+    marksRef.current.forEach((m) => m.setMap(null));
+    marksRef.current = places.map((p, i) => new kakao.maps.CustomOverlay({
+      map: mapRef.current, zIndex: 2, yAnchor: 1.2,
+      position: new kakao.maps.LatLng(p.lat, p.lng),
+      content: `<div style="background:#16a34a;color:#fff;font-size:11px;font-weight:700;min-width:20px;height:20px;line-height:20px;text-align:center;border-radius:10px;padding:0 5px;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3)">${i + 1}</div>`,
+    }));
+    if (places.length) {
+      const b = new kakao.maps.LatLngBounds();
+      b.extend(new kakao.maps.LatLng(center.lat, center.lng));
+      places.forEach((p) => b.extend(new kakao.maps.LatLng(p.lat, p.lng)));
+      mapRef.current.setBounds(b);
+    }
+  }, [sdk, places, center]);
+
+  // 목록에서 매장을 누르면 지도가 그쪽으로 이동한다.
+  useEffect(() => {
+    if (!sdk || !mapRef.current || focus == null || !places[focus]) return;
+    mapRef.current.panTo(new sdk.maps.LatLng(places[focus].lat, places[focus].lng));
+  }, [focus]);
+
+  return <div ref={box} className="w-full h-60 rounded-2xl overflow-hidden border border-gray-200 bg-gray-100" />;
+}
+
+function NearbyPlaces({ t }) {
+  const [cfg, setCfg] = useState(null);
+  const [stage, setStage] = useState("idle");   // idle | locating | loading | done
+  const [err, setErr] = useState("");
+  const [center, setCenter] = useState(null);
+  const [region, setRegion] = useState(null);
+  const [places, setPlaces] = useState([]);
+  const [radius, setRadius] = useState(1000);
+  const [focus, setFocus] = useState(null);
+  const [sdk, setSdk] = useState(null);
+  const [mapErr, setMapErr] = useState(false);   // 지도만 실패 — 목록은 그대로 쓸 수 있다
+
+  useEffect(() => { loadPlacesConfig().then(setCfg); }, []);
+
+  useEffect(() => {
+    if (!center) return;
+    let alive = true;
+    setStage("loading"); setErr("");
+    Promise.all([
+      api("GET", `/api/places?type=${t.id}&lat=${center.lat}&lng=${center.lng}&radius=${radius}`),
+      api("GET", `/api/places/region?lat=${center.lat}&lng=${center.lng}`),
+    ]).then(([p, r]) => {
+      if (!alive) return;
+      if (!p.ok) { setErr(p.error || "주변 정보를 가져오지 못했어요."); setStage("idle"); return; }
+      setPlaces(p.places || []); setRegion(r && r.ok ? r : null); setFocus(null); setStage("done");
+    });
+    return () => { alive = false; };
+  }, [center, radius, t.id]);
+
+  useEffect(() => {
+    if (stage !== "done" || !cfg || !cfg.jsKey || sdk) return;
+    // 지도가 안 떠도(도메인 미등록 등) 목록·전화번호는 멀쩡하다 — 전체 오류로 취급하지 않는다.
+    loadKakaoSdk(cfg.jsKey).then(setSdk).catch(() => setMapErr(true));
+  }, [stage, cfg]);
+
+  function locate() {
+    if (!navigator.geolocation) { setErr("이 브라우저는 위치 기능을 지원하지 않아요."); return; }
+    setStage("locating"); setErr("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCenter({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (e) => {
+        setStage("idle");
+        setErr(e.code === 1
+          ? "위치 권한이 거부됐어요. 주소창 왼쪽 자물쇠 아이콘에서 위치를 허용해 주세요."
+          : "위치를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  }
+
+  if (!cfg || !cfg.enabled) return null;
+  const regionText = region ? region.full : "";
+  const links = jobSearchLinks(regionText, t.name);
+
+  // 지도에 찍을 매장이 없는 유형(배달·재택·행사 등) — 솔직하게 공고 쪽으로 보낸다.
+  if (!cfg.types.includes(t.id)) {
+    return (
+      <div className="bg-white px-5 py-5 mt-2">
+        <h2 className="text-lg font-bold text-gray-900 mb-2">📍 우리 동네에서 찾기</h2>
+        <p className="text-[14px] text-gray-600 leading-relaxed bg-gray-50 rounded-xl p-3.5">
+          {t.name}는 매장을 찾아가기보다 <b>앱·공고로 지원</b>하는 알바예요. 아래에서 지역 공고를 바로 검색해 보세요.
+        </p>
+        <div className="flex gap-2 mt-3">
+          {links.map((l, i) => (
+            <a key={i} href={l.url} target="_blank" rel="noopener noreferrer"
+              className="flex-1 text-center text-[14px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-xl py-2.5">
+              {l.label} 공고 ↗
+            </a>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white px-5 py-5 mt-2">
+      <h2 className="text-lg font-bold text-gray-900">📍 우리 동네 {t.name.replace(" 알바", "")}</h2>
+      <p className="text-[12px] text-gray-400 mt-1">내 위치 주변에 어떤 곳이 있는지 먼저 확인해 보세요.</p>
+
+      {stage === "idle" && (
+        <button onClick={locate}
+          className="w-full mt-3 bg-brand text-white font-bold text-[15px] rounded-2xl py-3.5 active:scale-[.99] transition">
+          📍 내 주변에서 찾기
+        </button>
+      )}
+      {(stage === "locating" || stage === "loading") && (
+        <div className="mt-3 text-center text-[14px] text-gray-500 bg-gray-50 rounded-2xl py-4">
+          {stage === "locating" ? "위치를 확인하는 중…" : "주변을 찾는 중…"}
+        </div>
+      )}
+      {err && <p className="mt-3 text-[13px] text-red-600 bg-red-50 rounded-xl p-3 leading-relaxed">{err}</p>}
+
+      {stage === "done" && (
+        <div className="mt-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[13px] text-gray-500">
+              {regionText && <b className="text-gray-900">{regionText}</b>} 반경 {placeDist(radius)} · {places.length}곳
+            </div>
+            <div className="flex gap-1">
+              {[500, 1000, 3000].map((r) => (
+                <button key={r} onClick={() => setRadius(r)}
+                  className={"text-[12px] font-semibold px-2.5 py-1 rounded-full border " +
+                    (radius === r ? "bg-brand text-white border-brand" : "bg-white text-gray-500 border-gray-200")}>
+                  {placeDist(r)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {cfg.jsKey && !mapErr && <PlacesMap center={center} places={places} focus={focus} sdk={sdk} />}
+          {mapErr && (
+            <p className="text-[12px] text-gray-400 bg-gray-50 rounded-xl p-3 text-center">
+              지도는 불러오지 못했어요. 목록으로 확인해 주세요.
+            </p>
+          )}
+
+          {places.length === 0 && (
+            <p className="text-[14px] text-gray-500 bg-gray-50 rounded-xl p-4 text-center">
+              이 반경엔 결과가 없어요. 범위를 넓혀 보세요.
+            </p>
+          )}
+
+          <ul className="space-y-2">
+            {places.map((p, i) => (
+              <li key={p.id} onClick={() => setFocus(i)}
+                className={"rounded-2xl p-3.5 border cursor-pointer transition " +
+                  (focus === i ? "border-brand bg-brandLt" : "border-gray-200 bg-white")}>
+                <div className="flex items-start gap-2.5">
+                  <span className="w-5 h-5 shrink-0 mt-0.5 rounded-full bg-brand text-white text-[11px] font-bold grid place-items-center">{i + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[15px] font-bold text-gray-900 truncate">{p.name}</span>
+                      <span className="text-[12px] font-semibold text-brand shrink-0">{placeDist(p.distance)}</span>
+                    </div>
+                    <div className="text-[12px] text-gray-500 mt-0.5 truncate">{p.address}</div>
+                    <div className="flex gap-2 mt-2">
+                      {p.phone && (
+                        <a href={`tel:${p.phone}`} onClick={(e) => e.stopPropagation()}
+                          className="text-[13px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                          📞 {p.phone}
+                        </a>
+                      )}
+                      {p.url && (
+                        <a href={p.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
+                          className="text-[13px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
+                          지도 ↗
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="bg-amber-50 rounded-xl p-3.5 text-[13px] text-amber-800 leading-relaxed flex gap-2">
+            <span className="shrink-0">⚠️</span>
+            <span>여기 나온 곳이 <b>지금 알바를 뽑고 있다는 뜻은 아니에요.</b> 채용 여부는 공고를 확인하거나 매장에 직접 물어봐야 해요. 전화 문의는 한가한 시간대(오후 2~4시)가 좋아요.</span>
+          </div>
+          <div className="flex gap-2">
+            {links.map((l, i) => (
+              <a key={i} href={l.url} target="_blank" rel="noopener noreferrer"
+                className="flex-1 text-center text-[14px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-xl py-2.5">
+                {l.label} 공고 ↗
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Guide({ target, onBack, backLabel = "‹ 결과로" }) {
   const label = backLabel.replace(/^‹\s*/, "");
   if (target.kind === "premium") {
@@ -2653,6 +2902,7 @@ function Guide({ target, onBack, backLabel = "‹ 결과로" }) {
             <p className="text-[11px] text-gray-400 mt-2">※ 대표 예시예요. 실제 채용은 지점·업체마다 달라요.</p>
           </div>
         )}
+        <NearbyPlaces t={t} />
         <div className="bg-white px-5 py-5 mt-2 space-y-6">
           {t.about && (
             <div><h2 className="text-lg font-bold text-gray-900 mb-2">이런 알바예요</h2>

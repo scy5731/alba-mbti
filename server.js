@@ -1066,6 +1066,144 @@ app.post("/api/admin/payments/:orderId/cancel", requireAdmin, ah(async (req, res
   res.json({ ok: true, status: r.status });
 }));
 
+/* ============================================================
+   우리 동네 일할 곳 찾기 — 카카오 로컬 API 프록시
+   왜 프록시인가: REST API 키는 프론트에 나가면 그대로 도용당한다(쿼터가 남의 것이 됨).
+   브라우저는 좌표만 보내고, 키는 이 서버에서만 쓴다.
+   지도 그리기용 JavaScript 키는 성격이 달라서(도메인 잠금) 프론트로 내려보내도 된다.
+   ============================================================ */
+const KAKAO_REST_KEY = String(process.env.KAKAO_REST_KEY || "").trim();
+const KAKAO_JS_KEY = String(process.env.KAKAO_JS_KEY || "").trim();
+const PLACES_ON = !!KAKAO_REST_KEY;
+const KAKAO_LOCAL = "https://dapi.kakao.com/v2/local";
+
+/* 유형 → 카카오 검색 조건.
+   code = 카테고리 그룹 코드(정확도 높음), q = 키워드 검색(카테고리가 없는 업종).
+   값이 없는 유형은 "지도에서 찾는 알바"가 아니다(배달·재택·행사처럼 앱/공고로 지원).
+   그런 유형은 프론트가 섹션을 숨기고 공고 링크만 보여준다. */
+const PLACE_QUERY = {
+  cafe: { code: "CE7" }, hall: { code: "FD6" }, kitchen: { code: "FD6" },
+  fastfood: { q: "패스트푸드" }, chicken: { q: "치킨" }, dessert: { q: "아이스크림" },
+  bakery: { q: "베이커리" }, bar: { q: "호프" },
+  cvs: { code: "CS2" }, mart: { code: "MT1" }, beauty: { q: "화장품" },
+  bookstore: { q: "서점" }, flower: { q: "꽃집" }, kiosk: { q: "무인매장" },
+  pcbang: { q: "PC방" }, study: { q: "스터디카페" }, gym: { q: "헬스장" },
+  movie: { q: "영화관" }, karaoke: { q: "노래방" }, amusement: { q: "놀이공원" },
+  golf: { q: "골프장" }, lifeguard: { q: "수영장" },
+  gas: { code: "OL7" }, hotel: { code: "AD5" }, petcafe: { q: "애견카페" },
+  carwash: { q: "세차장" }, clean: { q: "빌딩관리" },
+  logi: { q: "물류센터" }, factory: { q: "공장" }, sorting: { q: "택배터미널" },
+  moving: { q: "이삿짐센터" }, courier: { q: "택배" },
+  tutor: { code: "AC5" }, afterschool: { q: "지역아동센터" },
+  wedding: { q: "웨딩홀" },
+  // 지도에 찍을 게 없는 유형: cs, datawork, delivery, valet, event, flyer, promoter, babysit
+};
+
+/* 같은 동네에서 같은 유형을 계속 눌러도 카카오를 다시 때리지 않는다(무료 쿼터 보호).
+   좌표는 소수 3자리(약 100m)로 뭉개서 캐시 키를 만든다. */
+const placeCache = new Map();
+const PLACE_TTL = 10 * 60 * 1000;
+function cacheGet(k) {
+  const hit = placeCache.get(k);
+  if (!hit) return null;
+  if (Date.now() - hit.at > PLACE_TTL) { placeCache.delete(k); return null; }
+  return hit.data;
+}
+function cacheSet(k, data) {
+  if (placeCache.size > 500) placeCache.clear(); // 단순 상한 — LRU까지는 필요 없다
+  placeCache.set(k, { at: Date.now(), data });
+}
+
+async function kakaoGet(pathname, params) {
+  const url = `${KAKAO_LOCAL}${pathname}?` + new URLSearchParams(params).toString();
+  const r = await fetch(url, { headers: { Authorization: `KakaoAK ${KAKAO_REST_KEY}` } });
+  const text = await r.text();
+  let json;
+  try { json = JSON.parse(text); }
+  catch (e) { throw new Error(`카카오 응답 파싱 실패 (HTTP ${r.status}): ${text.slice(0, 200)}`); }
+  if (!r.ok) throw new Error(`카카오 오류 (HTTP ${r.status}): ${json.msg || text.slice(0, 200)}`);
+  return json;
+}
+
+// 좌표 유효성 — 대한민국 범위를 크게 벗어나면 거른다(오타·장난 요청 차단).
+function readCoord(req) {
+  const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
+  if (!isFinite(lat) || !isFinite(lng)) return null;
+  if (lat < 33 || lat > 39 || lng < 124 || lng > 132) return null;
+  return { lat, lng };
+}
+
+// 지도 SDK 로딩에 필요한 값. REST 키는 여기에 절대 싣지 않는다.
+app.get("/api/places/config", (req, res) => {
+  res.json({
+    ok: true,
+    enabled: PLACES_ON,
+    jsKey: KAKAO_JS_KEY || null,           // 없으면 프론트가 목록만 보여준다(지도 없이)
+    types: Object.keys(PLACE_QUERY),        // 어떤 유형에 "주변 찾기"를 띄울지 프론트가 판단
+  });
+});
+
+// 좌표 → 동네 이름. "우리 동네"를 말로 보여주고, 공고 검색 링크에도 쓴다.
+app.get("/api/places/region", ah(async (req, res) => {
+  if (!PLACES_ON) return res.status(503).json({ ok: false, error: "장소 검색이 꺼져 있어요." });
+  const c = readCoord(req);
+  if (!c) return res.status(400).json({ ok: false, error: "좌표가 올바르지 않아요." });
+
+  const key = `region|${c.lat.toFixed(3)}|${c.lng.toFixed(3)}`;
+  const hit = cacheGet(key);
+  if (hit) return res.json(hit);
+
+  const j = await kakaoGet("/geo/coord2regioncode.json", { x: c.lng, y: c.lat });
+  const docs = j.documents || [];
+  // H = 행정동(사람이 말하는 "○○동"), 없으면 B = 법정동으로 대체.
+  const d = docs.find((x) => x.region_type === "H") || docs[0];
+  const out = d
+    ? { ok: true, si: d.region_1depth_name, gu: d.region_2depth_name, dong: d.region_3depth_name,
+        full: [d.region_2depth_name, d.region_3depth_name].filter(Boolean).join(" ") }
+    : { ok: true, si: "", gu: "", dong: "", full: "" };
+  cacheSet(key, out);
+  res.json(out);
+}));
+
+// 주변 매장 목록. 반경 기본 1km, 최대 5km(그 이상은 "우리 동네"가 아니다).
+app.get("/api/places", ah(async (req, res) => {
+  if (!PLACES_ON) return res.status(503).json({ ok: false, error: "장소 검색이 꺼져 있어요." });
+  const c = readCoord(req);
+  if (!c) return res.status(400).json({ ok: false, error: "좌표가 올바르지 않아요." });
+
+  const type = String(req.query.type || "").trim();
+  const spec = PLACE_QUERY[type];
+  if (!spec) return res.status(404).json({ ok: false, error: "지도에서 찾을 수 있는 유형이 아니에요." });
+
+  let radius = parseInt(req.query.radius || "1000", 10);
+  if (!isFinite(radius)) radius = 1000;
+  radius = Math.min(Math.max(radius, 200), 5000);
+
+  const key = `p|${type}|${c.lat.toFixed(3)}|${c.lng.toFixed(3)}|${radius}`;
+  const hit = cacheGet(key);
+  if (hit) return res.json(hit);
+
+  const common = { x: String(c.lng), y: String(c.lat), radius: String(radius), sort: "distance", size: "15" };
+  const j = spec.code
+    ? await kakaoGet("/search/category.json", { ...common, category_group_code: spec.code })
+    : await kakaoGet("/search/keyword.json", { ...common, query: spec.q });
+
+  const places = (j.documents || []).map((d) => ({
+    id: d.id,
+    name: d.place_name,
+    category: String(d.category_name || "").split(">").pop().trim(),
+    address: d.road_address_name || d.address_name || "",
+    phone: d.phone || "",
+    distance: parseInt(d.distance || "0", 10),  // m
+    lat: parseFloat(d.y), lng: parseFloat(d.x),
+    url: d.place_url || "",
+  }));
+
+  const out = { ok: true, type, radius, total: places.length, places };
+  cacheSet(key, out);
+  res.json(out);
+}));
+
 // 헬스체크 + 결제 상태. Render 서비스에 healthCheckPath=/api/config 가 남아 있어도 통과하도록 경로를 유지한다.
 // /api/config 는 프론트가 기동 때 읽고, Render 헬스체크가 이 경로로 남아 있을 수도 있다.
 // 여기서 503 을 주면 Render 가 배포 자체를 실패로 보고 트래픽을 아예 안 흘린다 — 항상 200.
