@@ -1204,6 +1204,60 @@ app.get("/api/places", ah(async (req, res) => {
   res.json(out);
 }));
 
+
+/* ============================================================
+   유형별 공유 링크 — albamates.com/r/ECFG
+   카톡·페북에 붙였을 때 고정 이미지 대신 내 유형 카드가 뜨게 한다.
+   사람은 앱으로 보내고, 크롤러는 여기 OG 태그만 읽고 간다.
+   카드 이미지는 scripts/build_og.js 로 미리 만들어 public/og/ 에 둔다.
+   ============================================================ */
+const OG_DIR = path.join(__dirname, "public", "og");
+let OG_LABELS = {};
+try { OG_LABELS = JSON.parse(fs.readFileSync(path.join(OG_DIR, "personas.json"), "utf8")); }
+catch (e) { console.warn("유형 이름표 없음 — /r/:code 는 기본 문구로 나갑니다 (node scripts/build_og.js)"); }
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+app.get("/r/:code", (req, res) => {
+  const code = String(req.params.code || "").toUpperCase();
+  if (!/^[EI][DC][FS][PG]$/.test(code)) return res.redirect(302, "/");
+
+  const base = baseUrl(req);
+  const label = OG_LABELS[code] || {};
+  const hasCard = fs.existsSync(path.join(OG_DIR, code + ".jpg"));
+  const image = hasCard ? `${base}/og/${code}.jpg` : `${base}/og-image.png`;
+  const title = label.nick ? `${code} · ${label.nick} — 알바 MBTI` : `${code} — 알바 MBTI`;
+  const desc = label.tag
+    ? `${label.tag}. 28문항으로 나에게 맞는 알바 유형을 찾아보세요.`
+    : "28문항으로 나에게 맞는 알바 유형을 찾아보세요.";
+
+  res.set("Cache-Control", "public, max-age=3600");
+  res.type("html").send(`<!doctype html>
+<html lang="ko"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(title)}</title>
+<meta name="description" content="${esc(desc)}" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="${esc(base)}/r/${code}" />
+<meta property="og:title" content="${esc(title)}" />
+<meta property="og:description" content="${esc(desc)}" />
+<meta property="og:image" content="${esc(image)}" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${esc(title)}" />
+<meta name="twitter:description" content="${esc(desc)}" />
+<meta name="twitter:image" content="${esc(image)}" />
+<link rel="canonical" href="${esc(base)}/" />
+<meta http-equiv="refresh" content="0; url=/" />
+</head><body style="font-family:system-ui;padding:40px;text-align:center;color:#555">
+<p>알바 MBTI로 이동 중…</p>
+<p><a href="/">여기</a>를 눌러주세요.</p>
+<script>location.replace("/");</script>
+</body></html>`);
+});
+
 // 헬스체크 + 결제 상태. Render 서비스에 healthCheckPath=/api/config 가 남아 있어도 통과하도록 경로를 유지한다.
 // /api/config 는 프론트가 기동 때 읽고, Render 헬스체크가 이 경로로 남아 있을 수도 있다.
 // 여기서 503 을 주면 Render 가 배포 자체를 실패로 보고 트래픽을 아예 안 흘린다 — 항상 200.

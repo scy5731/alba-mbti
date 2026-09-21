@@ -2048,7 +2048,8 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
   const summary = code.split("").map((ch) => AXIS_INFO[ch].key).join(" · ");
   // 추천은 유료라 공유 문구에서도 산 사람일 때만 붙인다.
   const picks = top.length ? `\n잘 맞는 알바: ${top.map((r) => r.t.name).join(", ")}` : "";
-  const shareText = `내 알바 MBTI는 ${code} ${p.emoji} ${p.nick}!${picks}\nalbamates.com #알바MBTI`;
+  // 유형별 링크로 보내야 카톡 미리보기에 내 유형 카드가 뜬다(서버 /r/:code).
+  const shareText = `내 알바 MBTI는 ${code} ${p.emoji} ${p.nick}!${picks}\nalbamates.com/r/${code}`;
   return (
     <div className="pb-16 bg-gray-50">
       {/* ──────── 여기부터는 무료. 결과가 보여야 공유되고, 공유돼야 사람이 온다. ──────── */}

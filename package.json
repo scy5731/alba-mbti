@@ -7,7 +7,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --env-file=.env server.js"
+    "dev": "node --env-file=.env server.js",
+    "og": "node scripts/build_og.js"
   },
   "dependencies": {
     "express": "^4.21.2",
