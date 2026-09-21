@@ -622,6 +622,18 @@ const TYPE_WAGE = {
   flyer:      { lo:1.00, hi:1.22, note:"배포 수량 기준으로 건당 정산하는 곳도 있어요." },
 };
 
+/* 시급 수준 3단계 — 최저임금 대비 배수로 색을 달리해 한눈에 구분되게.
+   t0 최저임금 수준(~1.15배) · t1 평균 이상(1.15~1.45배) · t2 고시급(1.45배~)
+   분포: 최저임금 수준 25종 / 평균 이상 13종 / 고시급 5종(과외·방과후·배달·골프캐디·이삿짐)
+   ※ 초록(brand)=직종 배지, 빨강(red-50)="힘든 점"에 이미 쓰고 있어서
+     고시급은 겹치지 않는 보라(violet) 채움 배지로 뺐다. */
+const WAGE_TIERS = [
+  { label:"최저임금 수준", badge:"text-gray-500 bg-gray-100",   card:"bg-gray-50",    num:"text-gray-700",   bar:"bg-gray-400",   pill:"text-gray-600 bg-gray-200" },
+  { label:"평균 이상",     badge:"text-amber-700 bg-amber-50",  card:"bg-amber-50",   num:"text-amber-700",  bar:"bg-amber-400",  pill:"text-amber-800 bg-amber-100" },
+  { label:"고시급",        badge:"text-white bg-violet-600",    card:"bg-violet-50",  num:"text-violet-700", bar:"bg-violet-500", pill:"text-white bg-violet-600" },
+];
+const wageTier = (ratio) => (ratio >= 1.45 ? WAGE_TIERS[2] : ratio >= 1.15 ? WAGE_TIERS[1] : WAGE_TIERS[0]);
+
 const wageRound = (n) => Math.round(n / 100) * 100;
 const wageWon = (n) => n.toLocaleString() + "원";
 function typeWage(id) {
@@ -630,10 +642,32 @@ function typeWage(id) {
   const lo = w.lo === 1 ? WAGE_BASE : wageRound(WAGE_BASE * w.lo);
   const hi = wageRound(WAGE_BASE * w.hi);
   const mid = Math.round((lo + hi) / 2);
-  return { lo, hi, mid, note: w.note, ratio: mid / WAGE_BASE,
+  const ratio = mid / WAGE_BASE;
+  return { lo, hi, mid, note: w.note, ratio, tier: wageTier(ratio),
            /* 최저임금(0%) ~ 최저임금 2배(100%) 구간에서의 위치 */
            pct: Math.max(2, Math.min(100, Math.round(((mid - WAGE_BASE) / WAGE_BASE) * 100))) };
 }
+/* 목록·카드용 시급 배지 (등급별 색) */
+function WageBadge({ id, size }) {
+  const w = typeWage(id);
+  if (!w) return null;
+  return (
+    <span className={(size === "lg" ? "text-[11px]" : "text-[10px]") + " font-semibold px-1.5 py-0.5 rounded shrink-0 " + w.tier.badge}>
+      💰 {w.lo.toLocaleString()}~{wageWon(w.hi)}
+    </span>
+  );
+}
+
+/* 시급 순위 — 중앙값 기준 내림차순, 동률은 같은 순위 */
+const WAGE_RANK = (() => {
+  const rows = Object.keys(TYPE_WAGE).map((id) => ({ id, m: (TYPE_WAGE[id].lo + TYPE_WAGE[id].hi) / 2 }))
+    .sort((x, y) => y.m - x.m);
+  const out = {};
+  rows.forEach((r, i) => { out[r.id] = (i > 0 && rows[i - 1].m === r.m) ? out[rows[i - 1].id] : i + 1; });
+  return out;
+})();
+const wageRank = (id) => WAGE_RANK[id];
+
 /* 목록·카드용 짧은 표기 */
 function wageShort(id) {
   const w = typeWage(id);
@@ -1482,7 +1516,7 @@ function Home({ onGuide, onMbti, onNav, onCat, onCalc, onAccount, user, prev, pa
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-[15px] text-gray-900">{t.name}</span>
                   <span className="text-[10px] font-semibold text-brand bg-brandLt px-1.5 py-0.5 rounded">{CAT_LABEL[TYPE_CAT[t.id]]}</span>
-                  {wageShort(t.id) && <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">💰 {wageShort(t.id)}</span>}
+                  <WageBadge id={t.id} />
                 </div>
                 <div className="text-[13px] text-gray-500 mt-0.5 truncate">{t.oneLine}</div>
               </div>
@@ -1557,6 +1591,12 @@ function TypesTab({ onGuide, initial }) {
       </div>
       <div className="px-5 py-3">
         <p className="text-xs text-gray-400 mb-1">총 <b className="text-brand">{list.length}</b>개</p>
+        <div className="flex items-center gap-1.5 flex-wrap mt-2">
+          <span className="text-[11px] text-gray-400">시급</span>
+          {WAGE_TIERS.map((tr, i) => (
+            <span key={i} className={"text-[10px] font-semibold px-1.5 py-0.5 rounded " + tr.badge}>{tr.label}</span>
+          ))}
+        </div>
       </div>
       <div className="bg-white divide-y divide-gray-100">
         {list.map((t) => (
@@ -1567,7 +1607,7 @@ function TypesTab({ onGuide, initial }) {
               <div className="flex items-center gap-1.5">
                 <span className="font-bold text-[15px] text-gray-900">{t.name}</span>
                 <span className="text-[10px] font-semibold text-brand bg-brandLt px-1.5 py-0.5 rounded shrink-0">{CAT_LABEL[TYPE_CAT[t.id]]}</span>
-                {wageShort(t.id) && <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">💰 {wageShort(t.id)}</span>}
+                <WageBadge id={t.id} />
               </div>
               <div className="text-[13px] text-gray-500 mt-0.5 line-clamp-1">{t.oneLine}</div>
               {TYPE_BRANDS[t.id] && <div className="text-[12px] text-gray-400 mt-1 line-clamp-1">🏢 {TYPE_BRANDS[t.id].slice(0, 3).join(" · ")}</div>}
@@ -1974,7 +2014,7 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
                         <div className="flex items-center gap-1.5">
                           <span className="text-[11px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">{idx === 0 ? "BEST" : `${idx + 1}순위`}</span>
                           <span className="text-[11px] font-semibold text-brand">매칭 {r.pct}%</span>
-                          {wageShort(r.t.id) && <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">💰 {wageShort(r.t.id)}</span>}
+                          <WageBadge id={r.t.id} size="lg" />
                         </div>
                         <h3 className="font-bold text-[17px] text-gray-900 leading-tight mt-0.5">{r.t.name}</h3>
                       </div>
@@ -2586,11 +2626,15 @@ function Guide({ target, onBack, backLabel = "‹ 결과로" }) {
         {typeWage(t.id) && (() => { const w = typeWage(t.id); return (
           <div className="bg-white px-5 py-5 mt-2">
             <h2 className="text-lg font-bold text-gray-900 mb-3">💰 평균 시급</h2>
-            <div className="bg-amber-50 rounded-2xl p-4">
-              <div className="text-[22px] font-bold text-amber-700 leading-tight">{wageWon(w.lo)} ~ {wageWon(w.hi)}</div>
-              <div className="text-[12px] text-gray-500 mt-1">2026년 최저임금({wageWon(WAGE_BASE)}) 대비 약 <b className="text-amber-700">{w.ratio.toFixed(2)}배</b></div>
+            <div className={"rounded-2xl p-4 " + w.tier.card}>
+              <div className="flex items-center gap-2">
+                <span className={"text-[11px] font-bold px-2 py-0.5 rounded-full " + w.tier.pill}>{w.tier.label}</span>
+                <span className="text-[11px] text-gray-400">43종 중 {wageRank(t.id)}위</span>
+              </div>
+              <div className={"text-[22px] font-bold leading-tight mt-1.5 " + w.tier.num}>{wageWon(w.lo)} ~ {wageWon(w.hi)}</div>
+              <div className="text-[12px] text-gray-500 mt-1">2026년 최저임금({wageWon(WAGE_BASE)}) 대비 약 <b className={w.tier.num}>{w.ratio.toFixed(2)}배</b></div>
               <div className="mt-3 h-2 rounded-full bg-white overflow-hidden">
-                <div className="h-full bg-amber-400 rounded-full" style={{ width: w.pct + "%" }} />
+                <div className={"h-full rounded-full " + w.tier.bar} style={{ width: w.pct + "%" }} />
               </div>
               <div className="flex justify-between text-[10px] text-gray-400 mt-1">
                 <span>최저임금 {wageWon(WAGE_BASE)}</span><span>{wageWon(WAGE_BASE * 2)}</span>
