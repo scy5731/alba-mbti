@@ -1474,9 +1474,7 @@ function Home({ onGuide, onMbti, onNav, onCat, onCalc, onAccount, user, prev, pa
             <div className="font-bold text-[17px] leading-tight">내 알바 MBTI는?</div>
             <div className="text-[12px] text-white/85 mt-0.5 truncate">
               {prev
-                ? (paid
-                    ? <>지난 결과 · {PERSONAS[prev.code].emoji} {prev.code} {PERSONAS[prev.code].nick}</>
-                    : "🔒 지난 결과 보기 · 결제하면 전체 공개")
+                ? <>지난 결과 · {PERSONAS[prev.code].emoji} {prev.code} {PERSONAS[prev.code].nick}</>
                 : "나에게 딱 맞는 알바 유형 찾기"}
             </div>
           </div>
@@ -1809,9 +1807,7 @@ function MbtiIntro({ onStart, prev, paid }) {
         </button>
         {prev && (
           <button onClick={() => onStart(true)} className="w-full mt-3 text-gray-500 text-sm font-semibold py-1">
-            {paid
-              ? <>지난 결과 보기 · {PERSONAS[prev.code].emoji} {prev.code} {PERSONAS[prev.code].nick}</>
-              : "🔒 지난 결과 보기 · 결제하면 전체 공개"}
+            <>지난 결과 보기 · {PERSONAS[prev.code].emoji} {prev.code} {PERSONAS[prev.code].nick}</>
           </button>
         )}
       </div>
@@ -1855,6 +1851,184 @@ function Quiz({ onDone, onBack }) {
   );
 }
 
+/* ============================================================
+   결과 공유 카드 — 인스타 스토리 규격(1080×1920) 이미지를 canvas 로 그린다.
+   서버를 거치지 않으니 비용도 지연도 없다. 이미지가 있어야 결과가 퍼진다.
+   ============================================================ */
+const CARD_W = 1080, CARD_H = 1920;
+const cardFont = (weight, size) =>
+  `${weight} ${size}px Pretendard, -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif`;
+
+function roundRectPath(g, x, y, w, h, r) {
+  if (g.roundRect) { g.beginPath(); g.roundRect(x, y, w, h, r); return; }
+  g.beginPath();                       // roundRect 없는 구형 브라우저용 수동 경로
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
+async function buildShareCard({ code, p, axisPct }) {
+  const cv = document.createElement("canvas");
+  cv.width = CARD_W; cv.height = CARD_H;
+  const g = cv.getContext("2d");
+  // 웹폰트(Pretendard)가 준비되기 전에 그리면 시스템 기본 폰트로 찍힌다.
+  try { await document.fonts.ready; } catch (e) {}
+
+  const grad = g.createLinearGradient(0, 0, CARD_W * 0.4, CARD_H);
+  grad.addColorStop(0, "#22C063");
+  grad.addColorStop(0.55, "#1BB055");
+  grad.addColorStop(1, "#138640");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, CARD_W, CARD_H);
+
+  const glow = g.createRadialGradient(CARD_W / 2, 420, 60, CARD_W / 2, 420, 620);
+  glow.addColorStop(0, "rgba(255,255,255,.16)");
+  glow.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = glow;
+  g.fillRect(0, 0, CARD_W, 1100);
+
+  g.textAlign = "center";
+
+  g.fillStyle = "rgba(255,255,255,.82)";
+  g.font = cardFont(700, 42);
+  g.fillText("알바 MBTI", CARD_W / 2, 175);
+
+  g.font = cardFont(400, 200);
+  g.fillText(p.emoji, CARD_W / 2, 420);
+
+  g.fillStyle = "#fff";
+  g.font = cardFont(800, 150);
+  try { g.letterSpacing = "14px"; } catch (e) {}
+  g.fillText(code, CARD_W / 2, 600);
+  try { g.letterSpacing = "0px"; } catch (e) {}
+
+  g.font = cardFont(800, 76);
+  g.fillText(p.nick, CARD_W / 2, 712);
+
+  g.fillStyle = "rgba(255,255,255,.8)";
+  g.font = cardFont(500, 40);
+  g.fillText(p.tag, CARD_W / 2, 782);
+
+  // ── 성향 4축 카드 ──
+  const CX = 90, CY = 860, CW = CARD_W - 180, CH = 610;
+  g.fillStyle = "#fff";
+  roundRectPath(g, CX, CY, CW, CH, 52);
+  g.fill();
+
+  const rowTop = CY + 78, rowGap = 138, barW = CW - 130, barX = CX + 65;
+  axisPct.forEach((x, i) => {
+    const y = rowTop + i * rowGap;
+    const leftActive = x.lead === x.a;
+    g.textAlign = "left";
+    g.font = cardFont(700, 34);
+    g.fillStyle = leftActive ? "#1BB055" : "#C9CDD2";
+    g.fillText(`${x.a} ${AXIS_LABEL[x.a]}`, barX, y);
+    g.textAlign = "right";
+    g.fillStyle = leftActive ? "#C9CDD2" : "#1BB055";
+    g.fillText(`${AXIS_LABEL[x.b]} ${x.b}`, barX + barW, y);
+
+    const by = y + 26, bh = 26;
+    g.fillStyle = "#F1F3F5";
+    roundRectPath(g, barX, by, barW, bh, bh / 2);
+    g.fill();
+    const fw = Math.max(bh, (barW * x.pct) / 100);
+    g.fillStyle = "#1BB055";
+    roundRectPath(g, leftActive ? barX : barX + barW - fw, by, fw, bh, bh / 2);
+    g.fill();
+  });
+
+  // ── 강점 칩 ──
+  g.textAlign = "center";
+  const chips = (p.strengths || []).slice(0, 2);
+  if (chips.length) {
+    g.font = cardFont(700, 38);
+    const pad = 34, gap = 20;
+    const widths = chips.map((s) => g.measureText("💪 " + s).width + pad * 2);
+    let x = (CARD_W - (widths.reduce((a, b) => a + b, 0) + gap * (chips.length - 1))) / 2;
+    chips.forEach((s, i) => {
+      g.fillStyle = "rgba(255,255,255,.2)";
+      roundRectPath(g, x, CY + CH + 60, widths[i], 84, 42);
+      g.fill();
+      g.fillStyle = "#fff";
+      g.fillText("💪 " + s, x + widths[i] / 2, CY + CH + 115);
+      x += widths[i] + gap;
+    });
+  }
+
+  g.fillStyle = "rgba(255,255,255,.75)";
+  g.font = cardFont(500, 38);
+  g.fillText("28문항으로 찾는 나에게 맞는 알바", CARD_W / 2, CARD_H - 150);
+  g.fillStyle = "#fff";
+  g.font = cardFont(800, 46);
+  g.fillText("albamates.com", CARD_W / 2, CARD_H - 88);
+
+  return cv;
+}
+
+/* 모바일은 공유 시트로, 안 되면 파일로 내려받는다. */
+async function shareCardImage(cv, code, nick) {
+  const blob = await new Promise((res) => cv.toBlob(res, "image/png"));
+  if (!blob) throw new Error("toBlob 실패");
+  const name = `알바MBTI_${code}.png`;
+  const text = `내 알바 MBTI는 ${code} ${nick}!\nalbamates.com`;
+  if (navigator.canShare) {
+    try {
+      const file = new File([blob], name, { type: "image/png" });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], text });
+        return "shared";
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") return "cancel";   // 사용자가 공유 시트를 닫은 것
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  return "downloaded";
+}
+
+function ShareButtons({ code, p, axisPct, shareText, onRetry, onHome }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function onCard() {
+    setBusy(true); setMsg("");
+    try {
+      const cv = await buildShareCard({ code, p, axisPct });
+      const how = await shareCardImage(cv, code, p.nick);
+      if (how === "downloaded") setMsg("이미지를 저장했어요! 인스타 스토리에 올려보세요 📸");
+    } catch (e) {
+      setMsg("이미지를 만들지 못했어요. 잠시 후 다시 시도해 주세요.");
+    }
+    setBusy(false);
+  }
+  function onCopy() {
+    try { navigator.clipboard.writeText(shareText); setMsg("결과를 복사했어요! 붙여넣기로 공유하세요 📋"); }
+    catch (e) { alert(shareText); }
+  }
+
+  return (
+    <div className="px-5 py-5">
+      <button onClick={onCard} disabled={busy}
+        className="w-full bg-brand text-white font-bold py-4 rounded-2xl press text-[15px] disabled:opacity-60">
+        {busy ? "이미지 만드는 중…" : "📸 결과 이미지로 저장·공유"}
+      </button>
+      {msg && <p className="text-[12px] text-gray-500 text-center mt-2 leading-relaxed">{msg}</p>}
+      <div className="flex gap-2.5 mt-2.5">
+        <button onClick={onCopy} className="flex-1 bg-white border border-gray-200 text-gray-600 font-bold py-3.5 rounded-xl press text-sm">📋 텍스트 복사</button>
+        <button onClick={onRetry} className="flex-1 bg-gray-100 text-gray-600 font-bold py-3.5 rounded-xl press text-sm">🔄 다시 하기</button>
+        <button onClick={onHome} className="flex-1 bg-white border border-gray-200 text-gray-600 font-bold py-3.5 rounded-xl press text-sm">🏠 홈으로</button>
+      </div>
+    </div>
+  );
+}
+
 function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, onBuy }) {
   const { code, axisPct } = result;
   /* 프리미엄 본문(축 해설·환경 태그·추천 TOP3·신중히 볼 알바)은 번들에 없다.
@@ -1872,64 +2046,12 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
   const worst = report && report.worst && TYPE_BY_ID[report.worst.id]
     ? { ...report.worst, t: TYPE_BY_ID[report.worst.id] } : null;
   const summary = code.split("").map((ch) => AXIS_INFO[ch].key).join(" · ");
-  const share = () => {
-    // 추천은 유료라 공유 문구에서도 산 사람일 때만 붙인다.
-    const picks = top.length ? `\n잘 맞는 알바: ${top.map((r) => r.t.name).join(", ")}` : "";
-    const txt = `내 알바 MBTI는 ${code} ${p.emoji} ${p.nick}!${picks}\n#알바MBTI`;
-    try { navigator.clipboard.writeText(txt); alert("결과를 복사했어요! 붙여넣기로 공유하세요 📋"); }
-    catch (e) { alert(txt); }
-  };
+  // 추천은 유료라 공유 문구에서도 산 사람일 때만 붙인다.
+  const picks = top.length ? `\n잘 맞는 알바: ${top.map((r) => r.t.name).join(", ")}` : "";
+  const shareText = `내 알바 MBTI는 ${code} ${p.emoji} ${p.nick}!${picks}\nalbamates.com #알바MBTI`;
   return (
     <div className="pb-16 bg-gray-50">
-      {!paid ? (
-      /* ──────── 미구매: 결과 전체를 잠근다. 결제해야 코드·성향·추천까지 열린다. ──────── */
-      <React.Fragment>
-        <div className="bg-white px-5 pt-14 pb-7 text-center border-b border-gray-100">
-          <div className="text-6xl pop">🎉</div>
-          <div className="mt-3 text-xl font-extrabold text-gray-900">결과가 완성됐어요!</div>
-          <div className="text-gray-400 text-sm mt-1.5">28문항 분석이 끝났어요.<br/>프리미엄으로 전체 결과를 확인하세요.</div>
-        </div>
-        <div className="px-5 py-5 bg-white mt-2">
-          <div className="border border-brand/20 bg-brandLt/40 rounded-2xl p-5 text-center">
-            <div className="text-3xl">🔒</div>
-            <div className="flex items-center justify-center gap-1.5 mt-2">
-              <h3 className="font-bold text-[16px] text-gray-900">알바 MBTI 프리미엄 리포트</h3>
-              <span className="text-[10px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">PREMIUM</span>
-            </div>
-            <p className="text-[13px] text-gray-500 leading-relaxed mt-1.5">
-              내 알바 유형부터 성향 분석·맞춤 추천까지<br />전체 결과를 한 번에 열어드려요.
-            </p>
-            <ul className="mt-4 space-y-2 text-left">
-              {[
-                ["🧬", "내 알바 MBTI 유형", "16유형 중 내 코드와 별명"],
-                ["🧠", "내 성향 자세히 보기", "4개 축을 하나씩 풀어서 해설"],
-                ["🧭", "이런 근무 환경이 잘 맞아요", "내게 맞는 환경 태그"],
-                ["🎯", "잘 맞는 알바 TOP 3", "매칭률과 '왜 잘 맞는지' 근거까지"],
-                ["⚠️", "이런 알바는 신중히", "결이 안 맞는 알바 미리 알기"],
-              ].map(([icon, title, sub], i) => (
-                <li key={i} className="flex gap-2.5 items-start bg-white rounded-xl p-3 border border-gray-100">
-                  <span className="text-lg leading-none mt-0.5">{icon}</span>
-                  <div className="min-w-0">
-                    <div className="text-[13px] font-bold text-gray-900">{title}</div>
-                    <div className="text-[12px] text-gray-500 mt-0.5">{sub}</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <button onClick={onBuy} className="mt-4 w-full bg-brand text-white font-bold py-3 rounded-xl press text-sm">
-              {price != null ? `${price.toLocaleString()}원으로 전체 결과 보기` : "프리미엄으로 전체 결과 보기"}
-            </button>
-            <p className="text-[11px] text-gray-400 mt-2">한 번 결제하면 계속 볼 수 있어요</p>
-          </div>
-        </div>
-        <div className="px-5 py-5 flex gap-2.5">
-          <button onClick={onRetry} className="flex-1 bg-gray-100 text-gray-600 font-bold py-3.5 rounded-xl press">🔄 다시 하기</button>
-          <button onClick={onHome} className="flex-1 bg-white border border-gray-200 text-gray-600 font-bold py-3.5 rounded-xl press">🏠 홈으로</button>
-        </div>
-      </React.Fragment>
-      ) : (
-      /* ──────── 결제자: 전체 결과 ──────── */
-      <React.Fragment>
+      {/* ──────── 여기부터는 무료. 결과가 보여야 공유되고, 공유돼야 사람이 온다. ──────── */}
       <div className="bg-white px-5 pt-14 pb-7 text-center border-b border-gray-100">
         <div className="text-6xl pop">{p.emoji}</div>
         <div className="mt-3 text-4xl font-extrabold tracking-widest text-brand">{code}</div>
@@ -1965,7 +2087,10 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
         </div>
       </div>
 
-      {/* ──────── 프리미엄 상세 (결제자만 이 화면에 도달) ──────── */}
+      {/* 결과를 받자마자 공유할 수 있게 — 이 버튼이 유입의 출발점이다. */}
+      <ShareButtons code={code} p={p} axisPct={axisPct} shareText={shareText} onRetry={onRetry} onHome={onHome} />
+
+      {paid ? (
       <React.Fragment>
           {/* 성향 상세 분석 */}
           <div className="px-5 py-5 bg-white mt-2">
@@ -2058,7 +2183,42 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
               </div>
             </div>
           )}
-        </React.Fragment>
+      </React.Fragment>
+      ) : (
+      /* ──────── 미구매: 추천 TOP 3 부터가 유료 ──────── */
+      <div className="px-5 py-5 bg-white mt-2">
+        <div className="border border-brand/20 bg-brandLt/40 rounded-2xl p-5 text-center">
+          <div className="text-3xl">🔒</div>
+          <div className="flex items-center justify-center gap-1.5 mt-2">
+            <h3 className="font-bold text-[16px] text-gray-900">나에게 맞는 알바 추천받기</h3>
+            <span className="text-[10px] font-bold text-white bg-brand px-1.5 py-0.5 rounded">PREMIUM</span>
+          </div>
+          <p className="text-[13px] text-gray-500 leading-relaxed mt-1.5">
+            {code} 유형에게 잘 맞는 알바를<br />매칭률과 근거까지 짚어드려요.
+          </p>
+          <ul className="mt-4 space-y-2 text-left">
+            {[
+              ["🎯", "잘 맞는 알바 TOP 3", "매칭률과 '왜 잘 맞는지' 근거까지"],
+              ["🧠", "내 성향 자세히 보기", "4개 축을 하나씩 풀어서 해설"],
+              ["🧭", "이런 근무 환경이 잘 맞아요", "내게 맞는 환경 태그"],
+              ["⚠️", "이런 알바는 신중히", "결이 안 맞는 알바 미리 알기"],
+            ].map(([icon, title, sub], i) => (
+              <li key={i} className="flex gap-2.5 items-start bg-white rounded-xl p-3 border border-gray-100">
+                <span className="text-lg leading-none mt-0.5">{icon}</span>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-bold text-gray-900">{title}</div>
+                  <div className="text-[12px] text-gray-500 mt-0.5">{sub}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <button onClick={onBuy} className="mt-4 w-full bg-brand text-white font-bold py-3 rounded-xl press text-sm">
+            {price != null ? `${price.toLocaleString()}원으로 추천 받기` : "프리미엄으로 추천 받기"}
+          </button>
+          <p className="text-[11px] text-gray-400 mt-2">한 번 결제하면 계속 볼 수 있어요</p>
+        </div>
+      </div>
+      )}
 
       <div className="px-5 py-5 bg-white mt-2">
         <h2 className="text-lg font-bold text-gray-900">📚 이건 꼭 알아두세요</h2>
@@ -2086,16 +2246,6 @@ function Result({ result, onRetry, onGuide, onHome, paid = true, price = null, o
           </div>
         </details>
       </div>
-
-      <div className="px-5 py-5 flex gap-2.5">
-        <button onClick={share} className="flex-1 bg-brand text-white font-bold py-3.5 rounded-xl press">📋 결과 공유</button>
-        <button onClick={onRetry} className="flex-1 bg-gray-100 text-gray-600 font-bold py-3.5 rounded-xl press">🔄 다시 하기</button>
-      </div>
-      <div className="px-5">
-        <button onClick={onHome} className="w-full bg-white border border-gray-200 text-gray-600 font-bold py-3.5 rounded-xl press">🏠 홈으로</button>
-      </div>
-      </React.Fragment>
-      )}
     </div>
   );
 }
@@ -3349,10 +3499,10 @@ function Profile({ user, onUser, onLogout, onBack, onAdmin, onRetake, onViewResu
         {p ? (
           <>
             <div className="flex items-center gap-3 bg-brandLt rounded-2xl px-4 py-3.5">
-              <div className="text-3xl">{paid ? p.emoji : "🔒"}</div>
+              <div className="text-3xl">{p.emoji}</div>
               <div className="min-w-0">
-                <div className="font-extrabold text-[16px] text-gray-900">{paid ? `${r.code} · ${p.nick}` : "결과 잠김"}</div>
-                <div className="text-[12px] text-gray-500 truncate">{paid ? p.tag : "결제하면 전체 결과가 열려요"}</div>
+                <div className="font-extrabold text-[16px] text-gray-900">{r.code} · {p.nick}</div>
+                <div className="text-[12px] text-gray-500 truncate">{paid ? p.tag : "추천 알바는 프리미엄에서 볼 수 있어요"}</div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 mt-3">
