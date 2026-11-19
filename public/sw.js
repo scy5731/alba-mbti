@@ -1,6 +1,6 @@
 /* 알바 MBTI 서비스워커 — 앱셸 캐싱 + 설치형(PWA) 지원.
    API(POST /api/*)와 CDN(교차출처)은 절대 가로채지 않음. */
-const CACHE = "alba-mate-v10";   // 런칭 배포 — 버전을 올려야 기존 방문자가 옛 앱셸을 안 물고 있다
+const CACHE = "alba-mate-v11";   // 2026-11 최저임금 2027 자동전환·CDN 버전고정 — 버전을 올려야 기존 방문자가 옛 앱셸을 안 물고 있다
 const SHELL = [
   "/",
   "/index.html",

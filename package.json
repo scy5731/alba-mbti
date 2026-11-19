@@ -11,7 +11,7 @@
     "og": "node scripts/build_og.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "pg": "^8.22.0"
+    "express": "^4.22.3",
+    "pg": "^8.23.1"
   }
 }
